@@ -34,12 +34,14 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchDashboardData = async () => {
       setLoading(true);
+      const BACKEND_URL =
+        process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
       try {
         const headlines = await fetchHeadlines();
         if (headlines) setGaData(headlines);
 
         const profileRes = await fetch(
-          "http://localhost:5000/api/analytics/profiles/list",
+          `${BACKEND_URL}/api/analytics/profiles/list`,
           {
             credentials: "include",
           },
@@ -51,7 +53,7 @@ export default function Dashboard() {
             const profileIds = profiles.map((p: any) => p.profileId);
 
             const aggRes = await fetch(
-              "http://localhost:5000/api/analytics/aggregate",
+              `${BACKEND_URL}/api/analytics/aggregate`,
               {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },

@@ -14,19 +14,17 @@ export default function GlobalSyncScreen({
 
   useEffect(() => {
     const checkSyncStatus = async () => {
+      const BACKEND_URL =
+        process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
       try {
-        const res = await fetch(
-          "http://localhost:5000/api/auth/meta/sync-status",
-          {
-            credentials: "include",
-          },
-        );
+        const res = await fetch(`${BACKEND_URL}/api/auth/meta/sync-status`, {
+          credentials: "include",
+        });
         if (res.ok) {
           const data = await res.json();
           setIsSyncing(data.isSyncing);
           setJobsRemaining(data.jobsRemaining);
 
-          // Capture the initial number of jobs to calculate a smooth progress percentage
           if (
             data.isSyncing &&
             initialJobs === null &&
@@ -41,7 +39,6 @@ export default function GlobalSyncScreen({
     };
 
     checkSyncStatus();
-    // Check every 5 seconds for smoother progress updates
     const interval = setInterval(checkSyncStatus, 5000);
 
     return () => clearInterval(interval);
@@ -50,9 +47,6 @@ export default function GlobalSyncScreen({
   if (isSyncing) {
     const estimatedSeconds = jobsRemaining * 360;
     const etaMinutes = Math.max(1, Math.ceil(estimatedSeconds / 60));
-
-    // Calculate a dynamic progress percentage.
-    // If we have initialJobs, we calculate exactly. Otherwise, fallback to an indeterminate 15% so the bar isn't empty.
     const progress =
       initialJobs && initialJobs >= jobsRemaining
         ? Math.max(

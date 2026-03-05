@@ -3,8 +3,8 @@ import { MappingEntry } from "../data/page-mapping";
 import { AggregatedPageData, BackendMetric, HeadlineData } from "../types";
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
-const API_BASE_URL = `${BASE_URL}/v1/analytics`;
-const MAPPINGS_URL = `${BASE_URL}/page-mappings`;
+const API_BASE_URL = `/v1/analytics`;
+const MAPPINGS_URL = `/page-mappings`;
 
 export const apiClient = axios.create({
   baseURL: BASE_URL,

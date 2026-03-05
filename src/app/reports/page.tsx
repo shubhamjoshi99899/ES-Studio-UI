@@ -36,7 +36,10 @@ export default function ReportsPage() {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   useEffect(() => {
-    fetch("http://localhost:5000/api/analytics/profiles/list", {
+    const BACKEND_URL =
+      process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+
+    fetch(`${BACKEND_URL}/api/analytics/profiles/list`, {
       credentials: "include",
     })
       .then((res) => {
