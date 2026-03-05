@@ -1,41 +1,79 @@
-import React, { useEffect, useState } from 'react';
-import { Settings2, TrendingUp, TrendingDown, Calendar } from 'lucide-react';
-import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { METRIC_CONFIG, MetricKey, AggregatedData } from '../types';
-import DateRangePicker from '../../components/DateRangePicker';
+import React, { useEffect, useState } from "react";
+import {
+  LineChart,
+  Line,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
+import { METRIC_CONFIG, MetricKey, AggregatedData } from "../types";
+import DateRangePicker from "../../components/DateRangePicker";
+import {
+  Settings2,
+  TrendingUp,
+  TrendingDown,
+  Calendar,
+  AlertTriangle,
+  X,
+} from "lucide-react";
 
 const CustomXAxisTick = ({ x, y, payload, index }: any) => {
   const date = new Date(payload.value);
   const day = date.getDate();
-  const month = date.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
+  const month = date
+    .toLocaleDateString("en-US", { month: "short" })
+    .toUpperCase();
   const showMonth = index === 0 || day === 1;
 
   return (
     <g transform={`translate(${x},${y})`}>
-      <text x={0} y={0} dy={16} textAnchor="middle" fill="#6b7280" fontSize={11} fontWeight={500}>
-        <tspan x="0" dy="0">{day}</tspan>
-        {showMonth && <tspan x="0" dy="14" fontWeight="bold" fill="#374151">{month}</tspan>}
+      <text
+        x={0}
+        y={0}
+        dy={16}
+        textAnchor="middle"
+        fill="#6b7280"
+        fontSize={11}
+        fontWeight={500}
+      >
+        <tspan x="0" dy="0">
+          {day}
+        </tspan>
+        {showMonth && (
+          <tspan x="0" dy="14" fontWeight="bold" fill="#374151">
+            {month}
+          </tspan>
+        )}
       </text>
     </g>
   );
 };
 
-export default function OverviewTab({ 
-  selectedProfileIds, activePlatform 
-}: { 
-  selectedProfileIds: string[], activePlatform: string 
+export default function OverviewTab({
+  selectedProfileIds,
+  activePlatform,
+}: {
+  selectedProfileIds: string[];
+  activePlatform: string;
 }) {
-  const [preset, setPreset] = useState<string>('30');
+  const [preset, setPreset] = useState<string>("30");
   const initEnd = new Date();
   const initStart = new Date();
   initStart.setDate(initStart.getDate() - 30);
 
-  const [startDate, setStartDate] = useState(initStart.toISOString().split('T')[0]);
-  const [endDate, setEndDate] = useState(initEnd.toISOString().split('T')[0]);
-  
+  const [startDate, setStartDate] = useState(
+    initStart.toISOString().split("T")[0],
+  );
+  const [endDate, setEndDate] = useState(initEnd.toISOString().split("T")[0]);
+
   const [aggData, setAggData] = useState<AggregatedData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeMetric, setActiveMetric] = useState<MetricKey>('netFollowers');
+  const [activeMetric, setActiveMetric] = useState<MetricKey>("netFollowers");
+  const [toastError, setToastError] = useState<string | null>(null);
 
   useEffect(() => {
     if (selectedProfileIds.length === 0) {
@@ -43,61 +81,80 @@ export default function OverviewTab({
       setLoading(false);
       return;
     }
-    
+
     setLoading(true);
-    fetch('http://localhost:5000/api/analytics/aggregate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ profileIds: selectedProfileIds, startDate, endDate })
+    fetch("http://localhost:5000/api/analytics/aggregate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        profileIds: selectedProfileIds,
+        startDate,
+        endDate,
+      }),
     })
-      .then(res => res.json())
-      .then(data => setAggData(data))
-      .catch(console.error)
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok)
+          throw new Error(data.error || "Failed to fetch data from backend");
+        return data;
+      })
+      .then((data) => {
+        setAggData(data);
+        setToastError(null);
+      })
+      .catch((error) => {
+        console.error(error);
+        setToastError(error.message);
+        setTimeout(() => setToastError(null), 5000);
+      })
       .finally(() => setLoading(false));
   }, [selectedProfileIds, startDate, endDate]);
 
   const handlePresetChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const val = e.target.value;
     setPreset(val);
-    if (val !== 'custom') {
+    if (val !== "custom") {
       const days = parseInt(val);
       const end = new Date();
       const start = new Date();
       start.setDate(start.getDate() - days);
-      setStartDate(start.toISOString().split('T')[0]);
-      setEndDate(end.toISOString().split('T')[0]);
+      setStartDate(start.toISOString().split("T")[0]);
+      setEndDate(end.toISOString().split("T")[0]);
     }
   };
 
   const handleCustomDateChange = (s: string, e: string) => {
     setStartDate(s);
     setEndDate(e);
-    setPreset('custom');
+    setPreset("custom");
   };
 
   if (loading) {
     return (
       <div className="flex h-64 flex-col gap-3 items-center justify-center bg-white rounded-2xl border border-gray-200 shadow-sm">
         <div className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-        <div className="text-gray-500 font-medium">Fetching data (syncing with Meta if needed)...</div>
+        <div className="text-gray-500 font-medium">
+          Fetching data (syncing with Meta if needed)...
+        </div>
       </div>
     );
   }
-  
+
   const hasData = aggData && aggData.timeSeries.length > 0;
   const config = METRIC_CONFIG[activeMetric];
-  const ChartComponent = config.type === 'area' ? AreaChart : LineChart;
+  const ChartComponent = config.type === "area" ? AreaChart : LineChart;
 
   return (
     <div className="space-y-6">
-      
-      {/* Date Range Control Row */}
       <div className="flex flex-wrap items-center gap-4 bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
         <div className="flex items-center gap-2">
           <Calendar size={16} className="text-gray-400" />
-          <span className="text-sm font-semibold text-gray-700">Date Range:</span>
-          <select 
-            value={preset} 
+          <span className="text-sm font-semibold text-gray-700">
+            Date Range:
+          </span>
+          <select
+            value={preset}
             onChange={handlePresetChange}
             className="bg-gray-50 border border-gray-200 text-sm font-semibold text-gray-700 outline-none cursor-pointer rounded-md px-3 py-1.5 hover:bg-gray-100 transition-colors"
           >
@@ -108,52 +165,76 @@ export default function OverviewTab({
           </select>
         </div>
 
-        {preset === 'custom' && (
+        {preset === "custom" && (
           <div className="animate-in fade-in slide-in-from-left-2">
-            <DateRangePicker startDate={startDate} endDate={endDate} onChange={handleCustomDateChange} />
+            <DateRangePicker
+              startDate={startDate}
+              endDate={endDate}
+              onChange={handleCustomDateChange}
+            />
           </div>
         )}
       </div>
 
       {!hasData ? (
         <div className="flex h-64 items-center justify-center text-center p-8 bg-white rounded-2xl border border-gray-200 shadow-sm">
-          <p className="text-gray-500 font-medium">No data available for the selected dates.</p>
+          <p className="text-gray-500 font-medium">
+            No data available for the selected dates.
+          </p>
         </div>
       ) : (
         <>
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             <div className="p-6 border-b border-gray-100 flex items-start justify-between">
               <div>
-                <h2 className="text-lg font-bold text-gray-900">Performance Summary</h2>
-                <p className="text-sm text-gray-500 mt-1">View your key profile performance metrics. Click a metric to update the graph below.</p>
+                <h2 className="text-lg font-bold text-gray-900">
+                  Performance Summary
+                </h2>
+                <p className="text-sm text-gray-500 mt-1">
+                  View your key profile performance metrics. Click a metric to
+                  update the graph below.
+                </p>
               </div>
               <button className="p-2 text-gray-400 hover:text-gray-700 bg-gray-50 rounded-lg border border-gray-200">
                 <Settings2 size={18} />
               </button>
             </div>
-            
+
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 p-2 gap-1">
               {(Object.keys(METRIC_CONFIG) as MetricKey[]).map((key) => {
                 const itemConf = METRIC_CONFIG[key];
                 const val = (aggData.totals as any)[itemConf.valueKey];
-                const change = Number((aggData.totals as any)[itemConf.changeKey]);
+                const change = Number(
+                  (aggData.totals as any)[itemConf.changeKey],
+                );
                 const isActive = activeMetric === key;
 
                 return (
-                  <button 
+                  <button
                     key={key}
                     onClick={() => setActiveMetric(key)}
-                    className={`flex flex-col items-start px-4 py-3 rounded-lg transition-all text-left border ${isActive ? 'bg-[#f4f7fe] border-[#6366f1] shadow-sm' : 'border-transparent hover:bg-gray-50'}`}
+                    className={`flex flex-col items-start px-4 py-3 rounded-lg transition-all text-left border ${isActive ? "bg-[#f4f7fe] border-[#6366f1] shadow-sm" : "border-transparent hover:bg-gray-50"}`}
                   >
-                    <p className={`text-xs font-medium mb-2 border-b border-dashed pb-0.5 ${isActive ? 'text-[#6366f1] border-[#6366f1]/50' : 'text-gray-700 border-gray-400'}`}>
+                    <p
+                      className={`text-xs font-medium mb-2 border-b border-dashed pb-0.5 ${isActive ? "text-[#6366f1] border-[#6366f1]/50" : "text-gray-700 border-gray-400"}`}
+                    >
                       {itemConf.label}
                     </p>
                     <div className="flex flex-col lg:flex-row lg:items-baseline gap-1.5 w-full">
-                      <span className={`text-xl xl:text-2xl font-bold ${isActive ? 'text-[#6366f1]' : 'text-gray-800'}`}>
-                        {val.toLocaleString()}{itemConf.suffix}
+                      <span
+                        className={`text-xl xl:text-2xl font-bold ${isActive ? "text-[#6366f1]" : "text-gray-800"}`}
+                      >
+                        {val.toLocaleString()}
+                        {itemConf.suffix}
                       </span>
-                      <span className={`text-[10px] font-bold flex items-center gap-0.5 ${change >= 0 ? 'text-emerald-600' : 'text-gray-500'}`}>
-                        {change >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+                      <span
+                        className={`text-[10px] font-bold flex items-center gap-0.5 ${change >= 0 ? "text-emerald-600" : "text-gray-500"}`}
+                      >
+                        {change >= 0 ? (
+                          <TrendingUp size={12} />
+                        ) : (
+                          <TrendingDown size={12} />
+                        )}
                         {Math.abs(change)}%
                       </span>
                     </div>
@@ -166,7 +247,9 @@ export default function OverviewTab({
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden transition-all duration-300">
             <div className="p-6 border-b border-gray-100 flex items-start justify-between">
               <div>
-                <h2 className="text-lg font-bold text-gray-900">{config.title}</h2>
+                <h2 className="text-lg font-bold text-gray-900">
+                  {config.title}
+                </h2>
                 <p className="text-sm text-gray-500 mt-1">{config.desc}</p>
               </div>
             </div>
@@ -174,72 +257,168 @@ export default function OverviewTab({
             <div className="p-6">
               <div className="h-[280px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <ChartComponent data={aggData.timeSeries} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
-                    <CartesianGrid vertical={false} stroke="#e5e7eb" strokeDasharray="0" />
-                    <XAxis dataKey="date" axisLine={false} tickLine={false} tick={<CustomXAxisTick />} tickMargin={10} minTickGap={30} />
-                    <YAxis axisLine={false} tickLine={false} tick={{fill: '#4b5563', fontSize: 12}} />
-                    <Tooltip 
-                      contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px', fontWeight: 'bold' }} 
-                      labelFormatter={(label) => new Date(label).toLocaleDateString(undefined, {month: 'long', day: 'numeric', year: 'numeric'})}
+                  <ChartComponent
+                    data={aggData.timeSeries}
+                    margin={{ top: 10, right: 10, left: -20, bottom: 20 }}
+                  >
+                    <CartesianGrid
+                      vertical={false}
+                      stroke="#e5e7eb"
+                      strokeDasharray="0"
                     />
-                    {config.type === 'area' ? (
-                      <Area type="monotone" dataKey={activeMetric} name={config.title} stroke={config.color} fill={config.color} fillOpacity={1} strokeWidth={0} activeDot={{r: 6, fill: config.color, stroke: "#fff", strokeWidth: 2}} />
+                    <XAxis
+                      dataKey="date"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={<CustomXAxisTick />}
+                      tickMargin={10}
+                      minTickGap={30}
+                    />
+                    <YAxis
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: "#4b5563", fontSize: 12 }}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        borderRadius: "8px",
+                        border: "1px solid #e5e7eb",
+                        boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+                        fontSize: "12px",
+                        fontWeight: "bold",
+                      }}
+                      labelFormatter={(label) =>
+                        new Date(label).toLocaleDateString(undefined, {
+                          month: "long",
+                          day: "numeric",
+                          year: "numeric",
+                        })
+                      }
+                    />
+                    {config.type === "area" ? (
+                      <Area
+                        type="monotone"
+                        dataKey={activeMetric}
+                        name={config.title}
+                        stroke={config.color}
+                        fill={config.color}
+                        fillOpacity={1}
+                        strokeWidth={0}
+                        activeDot={{
+                          r: 6,
+                          fill: config.color,
+                          stroke: "#fff",
+                          strokeWidth: 2,
+                        }}
+                      />
                     ) : (
-                      <Line type="monotone" dataKey={activeMetric} name={config.title} stroke={config.color} strokeWidth={3} dot={false} activeDot={{r: 6, fill: config.color, stroke: "#fff", strokeWidth: 2}} />
+                      <Line
+                        type="monotone"
+                        dataKey={activeMetric}
+                        name={config.title}
+                        stroke={config.color}
+                        strokeWidth={3}
+                        dot={false}
+                        activeDot={{
+                          r: 6,
+                          fill: config.color,
+                          stroke: "#fff",
+                          strokeWidth: 2,
+                        }}
+                      />
                     )}
                   </ChartComponent>
                 </ResponsiveContainer>
               </div>
             </div>
 
-            {/* RESTORED TABLE SECTION */}
             <div className="border-t border-gray-100 p-6 bg-gray-50/30">
               <div className="overflow-hidden border border-gray-200 rounded-lg bg-white shadow-sm">
                 <table className="w-full text-left text-sm">
                   <thead className="bg-white border-b border-gray-200 text-xs text-gray-500">
                     <tr>
-                      <th className="px-4 py-3 font-semibold">{config.title} Metrics</th>
-                      <th className="px-4 py-3 font-semibold text-right">Totals</th>
-                      <th className="px-4 py-3 font-semibold text-right">% Change</th>
+                      <th className="px-4 py-3 font-semibold">
+                        {config.title} Metrics
+                      </th>
+                      <th className="px-4 py-3 font-semibold text-right">
+                        Totals
+                      </th>
+                      <th className="px-4 py-3 font-semibold text-right">
+                        % Change
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    
                     <tr className="hover:bg-gray-50/50">
-                      <td className="px-4 py-4 font-bold text-gray-900">{config.title}</td>
+                      <td className="px-4 py-4 font-bold text-gray-900">
+                        {config.title}
+                      </td>
                       <td className="px-4 py-4 text-right font-bold text-gray-900">
-                        {(aggData.totals as any)[config.valueKey].toLocaleString()}{config.suffix}
+                        {(aggData.totals as any)[
+                          config.valueKey
+                        ].toLocaleString()}
+                        {config.suffix}
                       </td>
                       <td className="px-4 py-4 text-right">
-                        <span className={`inline-flex items-center gap-1 font-bold ${Number((aggData.totals as any)[config.changeKey]) >= 0 ? 'text-emerald-600' : 'text-gray-500'}`}>
-                          {Number((aggData.totals as any)[config.changeKey]) >= 0 ? <TrendingUp size={14}/> : <TrendingDown size={14}/>}
-                          {Math.abs(Number((aggData.totals as any)[config.changeKey]))}%
+                        <span
+                          className={`inline-flex items-center gap-1 font-bold ${Number((aggData.totals as any)[config.changeKey]) >= 0 ? "text-emerald-600" : "text-gray-500"}`}
+                        >
+                          {Number((aggData.totals as any)[config.changeKey]) >=
+                          0 ? (
+                            <TrendingUp size={14} />
+                          ) : (
+                            <TrendingDown size={14} />
+                          )}
+                          {Math.abs(
+                            Number((aggData.totals as any)[config.changeKey]),
+                          )}
+                          %
                         </span>
                       </td>
                     </tr>
 
-                    {/* Show Audience data natively when Net Followers is the active chart */}
-                    {activeMetric === 'netFollowers' && (
+                    {activeMetric === "netFollowers" && (
                       <tr className="hover:bg-gray-50/50">
-                        <td className="px-4 py-4 font-bold text-gray-900">Total Audience</td>
+                        <td className="px-4 py-4 font-bold text-gray-900">
+                          Total Audience
+                        </td>
                         <td className="px-4 py-4 text-right font-bold text-gray-900">
                           {aggData.totals.currentAudience.toLocaleString()}
                         </td>
                         <td className="px-4 py-4 text-right">
-                          <span className={`inline-flex items-center gap-1 font-bold ${Number(aggData.totals.audienceChange) >= 0 ? 'text-emerald-600' : 'text-gray-500'}`}>
-                            {Number(aggData.totals.audienceChange) >= 0 ? <TrendingUp size={14}/> : <TrendingDown size={14}/>}
+                          <span
+                            className={`inline-flex items-center gap-1 font-bold ${Number(aggData.totals.audienceChange) >= 0 ? "text-emerald-600" : "text-gray-500"}`}
+                          >
+                            {Number(aggData.totals.audienceChange) >= 0 ? (
+                              <TrendingUp size={14} />
+                            ) : (
+                              <TrendingDown size={14} />
+                            )}
                             {Math.abs(Number(aggData.totals.audienceChange))}%
                           </span>
                         </td>
                       </tr>
                     )}
-
                   </tbody>
                 </table>
               </div>
             </div>
           </div>
         </>
+      )}
+      {toastError && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 bg-red-600 text-white px-5 py-3.5 rounded-xl shadow-2xl animate-in slide-in-from-bottom-5 fade-in duration-300">
+          <AlertTriangle size={20} className="flex-shrink-0" />
+          <span className="text-sm font-semibold tracking-wide">
+            {toastError}
+          </span>
+          <button
+            onClick={() => setToastError(null)}
+            className="ml-4 text-white/70 hover:text-white hover:bg-white/10 p-1 rounded-full transition-colors"
+          >
+            <X size={16} />
+          </button>
+        </div>
       )}
     </div>
   );

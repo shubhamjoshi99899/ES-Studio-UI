@@ -40,7 +40,6 @@ const TrendIndicator = ({ change }: { change: number }) => {
   );
 };
 
-// Helper to calculate exact % change between two real numbers
 const getChange = (current: number, previous: number) => {
   if (!previous || previous === 0) return current > 0 ? 100 : 0;
   return Number((((current - previous) / Math.abs(previous)) * 100).toFixed(1));
@@ -61,7 +60,6 @@ export default function ProfilesTab({ profile }: { profile: Profile | null }) {
     "previous" | "custom" | "none"
   >("previous");
 
-  // Custom compare dates (default to previous 30 days)
   const initCompEnd = new Date(initStart.getTime() - 1000 * 60 * 60 * 24);
   const initCompStart = new Date(
     initCompEnd.getTime() - 1000 * 60 * 60 * 24 * 30,
@@ -88,32 +86,47 @@ export default function ProfilesTab({ profile }: { profile: Profile | null }) {
     if (!profile) return;
     setLoading(true);
 
-    const fetchCurrent: Promise<AggregatedData> = fetch('http://localhost:5000/api/analytics/aggregate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ profileIds: [profile.profileId], startDate, endDate })
-    }).then(res => res.json());
+    const fetchCurrent: Promise<AggregatedData> = fetch(
+      "http://localhost:5000/api/analytics/aggregate",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          profileIds: [profile.profileId],
+          startDate,
+          endDate,
+        }),
+      },
+    ).then((res) => res.json());
 
     let fetchCompare: Promise<AggregatedData | null> = Promise.resolve(null);
 
-    if (compareMode !== 'none') {
+    if (compareMode !== "none") {
       let cStart = compareStartDate;
       let cEnd = compareEndDate;
-      
-      // Auto-calculate exact previous period if mode is 'previous'
-      if (compareMode === 'previous') {
-        const diffTime = new Date(endDate).getTime() - new Date(startDate).getTime();
-        const pEnd = new Date(new Date(startDate).getTime() - (1000 * 60 * 60 * 24));
+
+      if (compareMode === "previous") {
+        const diffTime =
+          new Date(endDate).getTime() - new Date(startDate).getTime();
+        const pEnd = new Date(
+          new Date(startDate).getTime() - 1000 * 60 * 60 * 24,
+        );
         const pStart = new Date(pEnd.getTime() - diffTime);
-        cStart = pStart.toISOString().split('T')[0];
-        cEnd = pEnd.toISOString().split('T')[0];
+        cStart = pStart.toISOString().split("T")[0];
+        cEnd = pEnd.toISOString().split("T")[0];
       }
 
-      fetchCompare = fetch('http://localhost:5000/api/analytics/aggregate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ profileIds: [profile.profileId], startDate: cStart, endDate: cEnd })
-      }).then(res => res.json());
+      fetchCompare = fetch("http://localhost:5000/api/analytics/aggregate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          profileIds: [profile.profileId],
+          startDate: cStart,
+          endDate: cEnd,
+        }),
+      }).then((res) => res.json());
     }
 
     Promise.all([fetchCurrent, fetchCompare])
@@ -122,24 +135,35 @@ export default function ProfilesTab({ profile }: { profile: Profile | null }) {
         setCompareData(resCompare);
 
         if (resCurrent && resCurrent.timeSeries) {
-          // Accurately merge the current and comparison time series
-          const merged = resCurrent.timeSeries.map((point: any, index: number) => {
-            const mergedPoint = { ...point };
-            if (resCompare && resCompare.timeSeries && resCompare.timeSeries[index]) {
-              const compPoint = resCompare.timeSeries[index];
-              (Object.keys(METRIC_CONFIG) as MetricKey[]).forEach(key => {
-                mergedPoint[`prev_${key}`] = Math.round(compPoint[key] || 0); // Precise integer rounding
-              });
-            }
-            return mergedPoint;
-          });
+          const merged = resCurrent.timeSeries.map(
+            (point: any, index: number) => {
+              const mergedPoint = { ...point };
+              if (
+                resCompare &&
+                resCompare.timeSeries &&
+                resCompare.timeSeries[index]
+              ) {
+                const compPoint = resCompare.timeSeries[index];
+                (Object.keys(METRIC_CONFIG) as MetricKey[]).forEach((key) => {
+                  mergedPoint[`prev_${key}`] = Math.round(compPoint[key] || 0);
+                });
+              }
+              return mergedPoint;
+            },
+          );
           setChartData(merged);
         }
       })
       .catch(console.error)
       .finally(() => setLoading(false));
-
-  }, [profile, startDate, endDate, compareMode, compareStartDate, compareEndDate]);
+  }, [
+    profile,
+    startDate,
+    endDate,
+    compareMode,
+    compareStartDate,
+    compareEndDate,
+  ]);
 
   const handlePresetChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const val = e.target.value;
@@ -271,9 +295,7 @@ export default function ProfilesTab({ profile }: { profile: Profile | null }) {
 
   return (
     <div className="space-y-6">
-      {/* Filters Row */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-        {/* Main Date Selection */}
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <Calendar size={16} className="text-gray-400" />
@@ -306,7 +328,6 @@ export default function ProfilesTab({ profile }: { profile: Profile | null }) {
           )}
         </div>
 
-        {/* Comparison Date Selection */}
         <div className="flex flex-wrap items-center gap-4 pt-4 md:pt-0 md:border-l md:border-gray-200 md:pl-4">
           <div className="flex items-center gap-2">
             <GitCompare size={16} className="text-gray-400" />
@@ -356,7 +377,6 @@ export default function ProfilesTab({ profile }: { profile: Profile | null }) {
         </div>
       </div>
 
-      {/* Sparkline Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {(Object.keys(METRIC_CONFIG) as MetricKey[]).map((key) => {
           const config = METRIC_CONFIG[key];
@@ -445,7 +465,6 @@ export default function ProfilesTab({ profile }: { profile: Profile | null }) {
                           : "Current",
                       ]}
                     />
-                    {/* Thicker, darker gray dashed line for highly visible comparison */}
                     {compareMode !== "none" && (
                       <Area
                         type="monotone"
@@ -478,7 +497,6 @@ export default function ProfilesTab({ profile }: { profile: Profile | null }) {
         })}
       </div>
 
-      {/* Comparison Data Table */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="p-6 border-b border-gray-200 flex items-start justify-between bg-white relative">
           <div>
@@ -579,7 +597,6 @@ export default function ProfilesTab({ profile }: { profile: Profile | null }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 bg-white">
-              {/* Current Period Row */}
               <tr className="hover:bg-gray-50 transition-colors">
                 <td className="px-6 py-4 text-left">
                   <p className="font-bold text-gray-900">Reporting Period</p>
@@ -679,7 +696,6 @@ export default function ProfilesTab({ profile }: { profile: Profile | null }) {
                 </td>
               </tr>
 
-              {/* Compare Period Row */}
               {compareMode !== "none" && compTotals && (
                 <tr className="hover:bg-gray-50 transition-colors border-b-2 border-gray-100 bg-gray-50/30">
                   <td className="px-6 py-4 text-left">
@@ -709,7 +725,6 @@ export default function ProfilesTab({ profile }: { profile: Profile | null }) {
                 </tr>
               )}
 
-              {/* Profile Details Row */}
               <tr className="hover:bg-indigo-50/30 transition-colors">
                 <td className="px-6 py-5 text-left flex items-center gap-3">
                   <div className="relative flex-shrink-0">
