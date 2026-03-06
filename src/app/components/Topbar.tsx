@@ -4,7 +4,9 @@ import { ThemeToggle } from "@/components/ui/ThemeToggle";
 export default function Topbar() {
   return (
     <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-900/80 px-8 backdrop-blur-md transition-colors">
-      <div className="flex items-center gap-4">
+      <div />
+      
+      <div className="flex items-center gap-6">
         <ThemeToggle />
 
         <div className="flex items-center gap-3 border-l border-gray-200 dark:border-gray-700 pl-4 transition-colors">
