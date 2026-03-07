@@ -12,17 +12,18 @@ export default function AppLayoutWrapper({ children }: { children: React.ReactNo
   if (isLoginPage) {
     return <main className="min-h-screen bg-gray-50 dark:bg-gray-950">{children}</main>;
   }
+  
   return (
-    <GlobalSyncScreen>
-      <div className="flex min-h-screen bg-[#f8f9fa] dark:bg-gray-950 transition-colors">
-        <Sidebar />
-        <div className="ml-64 flex flex-1 flex-col">
-          <Topbar />
-          <main className="flex-1 p-8">
+    <div className="flex min-h-screen bg-[#f8f9fa] dark:bg-gray-950 transition-colors">
+      <Sidebar />
+      <div className="ml-64 flex flex-1 flex-col">
+        <Topbar />
+        <main className="flex-1 p-8">
+          <GlobalSyncScreen>
             {children}
-          </main>
-        </div>
+          </GlobalSyncScreen>
+        </main>
       </div>
-    </GlobalSyncScreen>
+    </div>
   );
 }
