@@ -16,6 +16,17 @@ import OverviewTab from "./components/OverviewTab";
 import ProfilesTab from "./components/ProfilesTab";
 import PostInsightsTab from "./components/PostInsightsTab";
 import CompareTab from "./components/CompareTab";
+import { useQuery } from "@tanstack/react-query";
+
+const fetchProfiles = async (): Promise<Profile[]> => {
+  const BACKEND_URL =
+    process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+  const res = await fetch(`${BACKEND_URL}/api/analytics/profiles/list`, {
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Failed to fetch profiles");
+  return res.json();
+};
 
 export default function ReportsPage() {
   const [activeTab, setActiveTab] = useState<"page" | "post">("page");
@@ -26,41 +37,26 @@ export default function ReportsPage() {
     "facebook" | "instagram"
   >("facebook");
 
-  const [profiles, setProfiles] = useState<Profile[]>([]);
-
   const [selectedProfileIds, setSelectedProfileIds] = useState<string[]>([]);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(
     null,
   );
-
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
 
+  const { data: profiles = [], isLoading } = useQuery({
+    queryKey: ["profiles-list"],
+    queryFn: fetchProfiles,
+    staleTime: 1000 * 60 * 5,
+  });
   useEffect(() => {
-    const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
-
-    fetch(`${BACKEND_URL}/api/analytics/profiles/list`, {
-      credentials: "include",
-    })
-      .then((res) => {
-        if (!res.ok) throw new Error("Failed to fetch profiles");
-        return res.json();
-      })
-      .then((data) => {
-        if (Array.isArray(data)) {
-          setProfiles(data);
-          const fbProfiles = data.filter((p) => p.platform === "facebook");
-          setSelectedProfileIds(fbProfiles.map((p) => p.profileId));
-          if (fbProfiles.length > 0)
-            setSelectedProfileId(fbProfiles[0].profileId);
-        } else {
-          setProfiles([]);
-        }
-      })
-      .catch((err) => {
-        console.error("Profile fetch error:", err);
-        setProfiles([]);
-      });
-  }, []);
+    if (profiles.length > 0 && !isInitialized) {
+      const fbProfiles = profiles.filter((p) => p.platform === activePlatform);
+      setSelectedProfileIds(fbProfiles.map((p) => p.profileId));
+      if (fbProfiles.length > 0) setSelectedProfileId(fbProfiles[0].profileId);
+      setIsInitialized(true);
+    }
+  }, [profiles, activePlatform, isInitialized]);
 
   const handlePlatformSwitch = (platform: "facebook" | "instagram") => {
     setActivePlatform(platform);
