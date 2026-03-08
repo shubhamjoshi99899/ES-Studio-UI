@@ -83,11 +83,13 @@ export default function ProfilesTab({ profile }: { profile: Profile | null }) {
   const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => {
+    const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+    
     if (!profile) return;
     setLoading(true);
 
     const fetchCurrent: Promise<AggregatedData> = fetch(
-      "http://localhost:5000/api/analytics/aggregate",
+      `${BACKEND_URL}/api/analytics/aggregate`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -117,7 +119,7 @@ export default function ProfilesTab({ profile }: { profile: Profile | null }) {
         cEnd = pEnd.toISOString().split("T")[0];
       }
 
-      fetchCompare = fetch("http://localhost:5000/api/analytics/aggregate", {
+      fetchCompare = fetch(`${BACKEND_URL}/api/analytics/aggregate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",

@@ -71,6 +71,8 @@ export default function CompareTab({
   ]);
 
   useEffect(() => {
+    const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+    
     if (selectedProfileIds.length === 0) {
       setAggData(null);
       setLoading(false);
@@ -78,8 +80,7 @@ export default function CompareTab({
     }
 
     setLoading(true);
-
-    fetch("http://localhost:5000/api/analytics/aggregate", {
+    fetch(`${BACKEND_URL}/api/analytics/aggregate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",

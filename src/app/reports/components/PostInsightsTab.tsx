@@ -81,12 +81,15 @@ export default function PostInsightsTab({
   const postsPerPage = viewMode === "grid" ? 20 : 30;
 
   useEffect(() => {
+    const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+    
     if (selectedProfileIds.length === 0) {
       setPosts([]);
       return;
     }
+    
     setLoading(true);
-    fetch("http://localhost:5000/api/analytics/posts", {
+    fetch(`${BACKEND_URL}/api/analytics/posts`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
@@ -96,12 +99,12 @@ export default function PostInsightsTab({
         endDate,
       }),
     })
-      .then((res) => res.json())
-      .then((data) => {
-        setPosts(data);
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
+    .then((res) => res.json())
+    .then((data) => {
+      setPosts(data);
+    })
+    .catch(console.error)
+    .finally(() => setLoading(false));
   }, [selectedProfileIds, startDate, endDate]);
 
   useEffect(() => {
