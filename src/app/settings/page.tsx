@@ -345,14 +345,14 @@ export default function SettingsPage() {
                   </button>
                 ) : (
                   <div className="flex items-center gap-3">
-                    <button 
+                    {/* <button 
                       onClick={handleManualSync}
                       disabled={isManualSyncing || syncStatus?.isSyncing}
                       className="flex items-center gap-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-2 text-sm font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm transition-colors disabled:opacity-50"
                     >
                       <RefreshCw size={14} className={isManualSyncing || syncStatus?.isSyncing ? "animate-spin text-blue-600" : ""} />
                       {isManualSyncing || syncStatus?.isSyncing ? "Syncing..." : "Sync Now"}
-                    </button>
+                    </button> */}
                     <button 
                       onClick={() => setShowDisconnectModal(true)}
                       className="rounded-xl border border-red-200 dark:border-red-900/30 bg-white dark:bg-gray-800 px-5 py-2 text-sm font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 shadow-sm transition-colors flex items-center gap-2"
