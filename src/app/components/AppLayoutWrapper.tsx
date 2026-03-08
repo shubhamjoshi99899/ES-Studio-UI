@@ -14,11 +14,11 @@ export default function AppLayoutWrapper({ children }: { children: React.ReactNo
   }
   
   return (
-    <div className="flex min-h-screen bg-[#f8f9fa] dark:bg-gray-950 transition-colors">
+    <div className="flex h-screen overflow-hidden bg-[#f8f9fa] dark:bg-gray-950 transition-colors">
       <Sidebar />
-      <div className="ml-64 flex flex-1 flex-col">
+      <div className="ml-64 flex flex-1 flex-col h-screen">
         <Topbar />
-        <main className="flex-1 p-8">
+        <main className="flex-1 overflow-y-auto p-4 md:p-8">
           <GlobalSyncScreen>
             {children}
           </GlobalSyncScreen>

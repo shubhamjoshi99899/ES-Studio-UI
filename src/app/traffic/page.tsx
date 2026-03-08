@@ -1,8 +1,7 @@
 "use client";
 
+import React, { useEffect, useState, useRef } from "react";
 import {
-  Layout,
-  Layers,
   MousePointer2,
   Users,
   Eye,
@@ -13,21 +12,286 @@ import {
   X,
   Database,
   UserCheck,
+  Facebook,
+  Layers,
+  Settings,
+  ArrowLeft,
+  Trash2,
+  Plus,
+  UploadCloud,
+  Loader2,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+
 import { StatCard } from "@/components/ui/StatCard";
-import { PlatformTab } from "@/components/ui/PlatformTab";
-import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { Headlines } from "@/components/ui/Headlines";
 import { cn } from "@/lib/utils";
 import { CountryStats } from "@/components/ui/CountryStats";
 import { TrafficChart } from "@/features/traffic/components/TrafficChart";
 import { TrafficTable } from "@/features/traffic/components/TrafficTable";
+
 import { useTrafficData } from "@/features/traffic/hooks/useTrafficData";
+import {
+  fetchPageMappings,
+  createPageMapping,
+  deletePageMapping,
+  importPageMappingsCSV,
+  importLegacyDataCSV,
+} from "@/lib/api";
+import { MappingEntry } from "@/data/page-mapping";
 
-export default function DashboardPage() {
+interface MappingWithId extends MappingEntry {
+  id?: number;
+}
+
+function MappingsView({ onBack }: { onBack: () => void }) {
+  const [mappings, setMappings] = useState<MappingWithId[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const [newCategory, setNewCategory] = useState("");
+  const [newPlatform, setNewPlatform] = useState("Facebook");
+  const [newPageName, setNewPageName] = useState("");
+  const [newUtmSource, setNewUtmSource] = useState("fb");
+  const [newMediums, setNewMediums] = useState("");
+
+  const [isUploadingMapping, setIsUploadingMapping] = useState(false);
+  const [isUploadingAnalytics, setIsUploadingAnalytics] = useState(false);
+  const mappingFileInputRef = useRef<HTMLInputElement>(null);
+  const analyticsFileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    loadMappings();
+  }, []);
+
+  const loadMappings = async () => {
+    setLoading(true);
+    try {
+      const data = await fetchPageMappings();
+      setMappings(data);
+    } catch (error) {
+      console.error("Failed to load mappings", error);
+    }
+    setLoading(false);
+  };
+
+  const handleAdd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPageName || !newMediums) return;
+
+    const mediumsArray = newMediums
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    const newEntry: MappingEntry = {
+      category: newCategory || "Uncategorized",
+      platform: newPlatform,
+      pageName: newPageName,
+      utmSource: newUtmSource,
+      utmMediums: mediumsArray,
+    };
+
+    try {
+      await createPageMapping(newEntry);
+      setNewPageName("");
+      setNewMediums("");
+      loadMappings();
+    } catch (err) {
+      console.error("Failed to add mapping", err);
+    }
+  };
+
+  const handleDelete = async (id?: number) => {
+    if (!id) return;
+    if (confirm("Are you sure you want to delete this mapping?")) {
+      await deletePageMapping(id);
+      loadMappings();
+    }
+  };
+
+  const handleMappingFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploadingMapping(true);
+    try {
+      const res = await importPageMappingsCSV(file);
+      alert(res.message || "Page mappings imported successfully!");
+      loadMappings();
+    } catch (err: any) {
+      console.error(err);
+      alert(err.response?.data?.message || "Failed to import mappings");
+    } finally {
+      setIsUploadingMapping(false);
+      if (mappingFileInputRef.current) mappingFileInputRef.current.value = "";
+    }
+  };
+
+  const handleAnalyticsFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploadingAnalytics(true);
+    try {
+      const res = await importLegacyDataCSV(file);
+      alert(res.message || "Legacy analytics data imported successfully!");
+    } catch (err: any) {
+      console.error(err);
+      alert(err.response?.data?.message || "Failed to import analytics data");
+    } finally {
+      setIsUploadingAnalytics(false);
+      if (analyticsFileInputRef.current) analyticsFileInputRef.current.value = "";
+    }
+  };
+
+  return (
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+      {/* Header */}
+      <div className="flex items-center gap-4">
+        <button
+          onClick={onBack}
+          className="p-2 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors shadow-sm border border-gray-200 dark:border-gray-700"
+        >
+          <ArrowLeft className="w-5 h-5 text-gray-700 dark:text-gray-300" />
+        </button>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">UTM Settings & Mappings</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Configure how page URLs match to your analytics.</p>
+        </div>
+      </div>
+
+      {/* Bulk Uploads */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="bg-white dark:bg-gray-900 p-5 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 flex flex-col">
+          <h2 className="text-base font-bold mb-1 flex items-center gap-2 text-gray-900 dark:text-white">
+            <UploadCloud className="w-5 h-5 text-blue-500" /> Upload Page Mappings
+          </h2>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-4 flex-1">
+            Import a CSV to bulk-add page mapping configurations.
+          </p>
+          <input type="file" accept=".csv" className="hidden" ref={mappingFileInputRef} onChange={handleMappingFileUpload} />
+          <button
+            onClick={() => mappingFileInputRef.current?.click()}
+            disabled={isUploadingMapping}
+            className="flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-900 dark:text-white px-4 py-2 rounded-lg text-sm font-bold transition disabled:opacity-50"
+          >
+            {isUploadingMapping ? <Loader2 className="w-4 h-4 animate-spin" /> : <UploadCloud className="w-4 h-4" />}
+            {isUploadingMapping ? "Uploading..." : "Select Mappings CSV"}
+          </button>
+        </div>
+
+        <div className="bg-white dark:bg-gray-900 p-5 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 flex flex-col">
+          <h2 className="text-base font-bold mb-1 flex items-center gap-2 text-gray-900 dark:text-white">
+            <UploadCloud className="w-5 h-5 text-green-500" /> Upload Legacy Analytics
+          </h2>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-4 flex-1">
+            Import raw daily UTM analytics data via CSV to append historical traffic figures.
+          </p>
+          <input type="file" accept=".csv" className="hidden" ref={analyticsFileInputRef} onChange={handleAnalyticsFileUpload} />
+          <button
+            onClick={() => analyticsFileInputRef.current?.click()}
+            disabled={isUploadingAnalytics}
+            className="flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-900 dark:text-white px-4 py-2 rounded-lg text-sm font-bold transition disabled:opacity-50"
+          >
+            {isUploadingAnalytics ? <Loader2 className="w-4 h-4 animate-spin" /> : <UploadCloud className="w-4 h-4" />}
+            {isUploadingAnalytics ? "Processing..." : "Select Legacy Data CSV"}
+          </button>
+        </div>
+      </div>
+
+      <div className="bg-white dark:bg-gray-900 p-5 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800">
+        <h2 className="text-lg font-bold mb-4 text-gray-900 dark:text-white">Add Single Mapping</h2>
+        <form onSubmit={handleAdd} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 items-end">
+          <div className="space-y-1">
+            <label className="text-xs font-bold uppercase text-gray-500">Category</label>
+            <input className="w-full p-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white" value={newCategory} onChange={(e) => setNewCategory(e.target.value)} placeholder="e.g. USS" />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-bold uppercase text-gray-500">Platform</label>
+            <select className="w-full p-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white" value={newPlatform} onChange={(e) => setNewPlatform(e.target.value)}>
+              <option value="Facebook">Facebook</option>
+              <option value="Threads">Threads</option>
+            </select>
+          </div>
+          <div className="space-y-1 sm:col-span-2 lg:col-span-2">
+            <label className="text-xs font-bold uppercase text-gray-500">Page Name</label>
+            <input className="w-full p-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white" value={newPageName} onChange={(e) => setNewPageName(e.target.value)} placeholder="Display Name" />
+          </div>
+          <div className="space-y-1 sm:col-span-2 lg:col-span-2">
+            <label className="text-xs font-bold uppercase text-gray-500">UTM Mediums (comma separated)</label>
+            <input className="w-full p-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white" value={newMediums} onChange={(e) => setNewMediums(e.target.value)} placeholder="uss_page_1, uss_page_2" />
+          </div>
+          <div className="sm:col-span-2 lg:col-span-6 flex justify-end mt-2">
+            <button type="submit" className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg text-sm font-bold transition-colors">
+              <Plus className="w-4 h-4" /> Add Mapping
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left whitespace-nowrap">
+            <thead className="bg-gray-50 dark:bg-gray-800/80 text-gray-500 dark:text-gray-400 font-bold uppercase text-xs border-b border-gray-200 dark:border-gray-700">
+              <tr>
+                <th className="px-6 py-3">Category</th>
+                <th className="px-6 py-3">Platform</th>
+                <th className="px-6 py-3">Page Name</th>
+                <th className="px-6 py-3">UTM Mediums</th>
+                <th className="px-6 py-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+              {loading ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                    <Loader2 className="w-6 h-6 animate-spin mx-auto mb-3 text-blue-500" />
+                    Loading mappings...
+                  </td>
+                </tr>
+              ) : mappings.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                    No mappings found. Add one above or upload a CSV.
+                  </td>
+                </tr>
+              ) : (
+                mappings.map((m) => (
+                  <tr key={m.id || m.pageName} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 text-gray-800 dark:text-gray-200 transition-colors">
+                    <td className="px-6 py-3 font-bold">{m.category}</td>
+                    <td className="px-6 py-3">{m.platform}</td>
+                    <td className="px-6 py-3 font-bold text-blue-600 dark:text-blue-400">{m.pageName}</td>
+                    <td className="px-6 py-3">
+                      <div className="flex flex-wrap gap-1.5 max-w-md">
+                        {m.utmMediums.map((med) => (
+                          <span key={med} className="bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded-md text-[11px] font-medium border border-gray-200 dark:border-gray-700">
+                            {med}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="px-6 py-3 text-right">
+                      <button onClick={() => handleDelete(m.id)} className="text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 p-2 rounded-lg transition-colors">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =====================================================================
+// 2. MAIN DASHBOARD COMPONENT (Traffic Overview + Table)
+// =====================================================================
+export default function WebTrafficPage() {
   const [mounted, setMounted] = useState(false);
-
+  const [showMappings, setShowMappings] = useState(false);
+  
   const trafficData = useTrafficData();
 
   useEffect(() => {
@@ -36,10 +300,17 @@ export default function DashboardPage() {
 
   if (!mounted) {
     return (
-      <div className="min-h-screen bg-gray-50/50 dark:bg-black/20 flex items-center justify-center">
-        <div className="animate-pulse">Loading...</div>
+      <div className="flex h-[50vh] flex-col gap-3 items-center justify-center bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
+        <RefreshCcw className="w-6 h-6 text-indigo-600 animate-spin" />
+        <div className="text-gray-500 dark:text-gray-400 font-medium">
+          Loading Web Traffic Analytics...
+        </div>
       </div>
     );
+  }
+
+  if (showMappings) {
+    return <MappingsView onBack={() => setShowMappings(false)} />;
   }
 
   const {
@@ -53,199 +324,182 @@ export default function DashboardPage() {
     refresh,
     sync,
   } = trafficData;
+
   return (
-    <div className="min-h-screen bg-gray-50/50 dark:bg-black/20 text-gray-800 dark:text-gray-200 font-sans pb-20">
-      {/* Top Navigation */}
-      <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 sticky top-0 z-30 shadow-sm">
-        <div className="max-w-[95%] mx-auto px-4 flex items-center justify-between h-16">
-          <div className="flex items-center gap-3">
-            
-            <h1 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">
-              UTM 
-              <span className="text-blue-600 dark:text-blue-400">
-                Analytics
-              </span>
-            </h1>
+    <div className="space-y-6 pb-4 animate-in fade-in duration-300">
+      
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+            Web Traffic Analytics
+          </h1>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            Real-time cross-channel traffic and engagement metrics
+          </p>
+        </div>
+        
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Platform Toggle */}
+          <div className="flex items-center rounded-full bg-gray-100 dark:bg-gray-800 p-1 shrink-0">
+            <button
+              onClick={() => filters.setPlatform("Facebook")}
+              className={`flex items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold transition-all ${
+                filters.platform === "Facebook"
+                  ? "bg-white dark:bg-gray-700 shadow-sm text-blue-600 dark:text-blue-400"
+                  : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+              }`}
+            >
+              <Facebook size={16} /> <span className="hidden sm:inline">Facebook</span>
+            </button>
+            <button
+              onClick={() => filters.setPlatform("Threads")}
+              className={`flex items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold transition-all ${
+                filters.platform === "Threads"
+                  ? "bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-white"
+                  : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+              }`}
+            >
+              <Layers size={16} /> <span className="hidden sm:inline">Threads</span>
+            </button>
           </div>
 
-          <div className="flex items-center gap-4">
-            <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 p-1 rounded-lg">
-              <PlatformTab
-                active={filters.platform === "Facebook"}
-                label="Facebook"
-                onClick={() => filters.setPlatform("Facebook")}
-                icon={Layout}
-              />
-              <PlatformTab
-                active={filters.platform === "Threads"}
-                label="Threads"
-                onClick={() => filters.setPlatform("Threads")}
-                icon={Layers}
-              />
-            </div>
-            
-          </div>
+          {/* Manage Mappings Button */}
+          <button
+            onClick={() => setShowMappings(true)}
+            className="flex items-center gap-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-2 rounded-full text-sm font-bold text-gray-700 dark:text-gray-200 transition-colors shadow-sm"
+          >
+            <Settings className="w-4 h-4" />
+            <span className="hidden sm:inline">Mappings</span>
+          </button>
         </div>
       </div>
 
-      <div className="max-w-[95%] mx-auto px-4 py-8 space-y-6">
-        {/* Headlines */}
-        <Headlines
-          data={headlines}
-          loading={loading}
-          rawData={rawData}
-          mappedSessions={stats.sessions}
-        />
-
-        {/* Filters Bar */}
-        <div className="bg-white dark:bg-gray-900 p-4 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 flex flex-wrap items-center gap-4 justify-between">
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="flex items-center bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-1 shadow-sm focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500 transition-all">
-              <div className="relative">
-                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                <input
-                  type="date"
-                  value={filters.startDate}
-                  onChange={(e) => filters.setStartDate(e.target.value)}
-                  className="bg-transparent text-sm pl-9 pr-2 py-1.5 outline-none text-gray-700 dark:text-gray-200 font-medium w-34 cursor-pointer dark:[color-scheme:dark]"
-                />
-              </div>
-              <ChevronRight className="w-4 h-4 text-gray-400 mx-0.5" />
+      {/* 2. Global Filters Bar */}
+      <div className="bg-white dark:bg-gray-900 p-3 sm:p-4 rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm flex flex-col xl:flex-row gap-4 justify-between items-start xl:items-center">
+        <div className="flex flex-row flex-wrap items-center gap-3 w-full xl:w-auto">
+          
+          {/* Date Range Picker */}
+          <div className="flex flex-col sm:flex-row items-center bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-1 shadow-sm w-full sm:w-auto">
+            <div className="relative w-full sm:w-auto">
+              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
               <input
                 type="date"
-                value={filters.endDate}
-                onChange={(e) => filters.setEndDate(e.target.value)}
-                className="bg-transparent text-sm px-2 py-1.5 outline-none text-gray-700 dark:text-gray-200 font-medium w-34 cursor-pointer dark:[color-scheme:dark]"
+                value={filters.startDate}
+                onChange={(e) => filters.setStartDate(e.target.value)}
+                className="bg-transparent w-full sm:w-[130px] text-sm pl-9 pr-2 py-1.5 sm:py-1 outline-none text-gray-700 dark:text-gray-200 font-medium cursor-pointer"
               />
             </div>
+            <ChevronRight className="hidden sm:block w-4 h-4 text-gray-400 mx-0.5" />
+            <input
+              type="date"
+              value={filters.endDate}
+              onChange={(e) => filters.setEndDate(e.target.value)}
+              className="bg-transparent w-full sm:w-[130px] text-sm px-3 sm:px-2 py-1.5 sm:py-1 outline-none text-gray-700 dark:text-gray-200 font-medium cursor-pointer border-t sm:border-t-0 border-gray-200 dark:border-gray-700 mt-1 sm:mt-0"
+            />
+          </div>
 
-            <div className="flex items-center gap-2 border-l border-gray-200 dark:border-gray-700 pl-4">
-              {[
-                { label: "Last 7 Days", key: "last7Days" },
-                { label: "This Month", key: "thisMonth" },
-                { label: "Last 2 Weeks", key: "prevWeek" },
-                { label: "Last 30 Days", key: "30days" },
-              ].map((preset) => (
-                <button
-                  key={preset.key}
-                  onClick={() => filters.applyPreset(preset.key as any)}
-                  className="px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white rounded-lg transition-colors"
-                >
-                  {preset.label}
-                </button>
-              ))}
-            </div>
+          {/* Presets */}
+          <div className="flex items-center gap-2 overflow-x-auto hide-scrollbar">
+            {[
+              { label: "7 Days", key: "last7Days" },
+              { label: "This Month", key: "thisMonth" },
+              { label: "2 Weeks", key: "prevWeek" },
+              { label: "30 Days", key: "30days" },
+            ].map((preset) => (
+              <button
+                key={preset.key}
+                onClick={() => filters.applyPreset(preset.key as any)}
+                className="whitespace-nowrap px-3 py-1.5 text-xs font-bold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
 
+          {/* Campaign Selector */}
+          <div className="flex items-center gap-2 w-full sm:w-auto mt-2 sm:mt-0">
             <select
               value={filters.selectedCampaign}
               onChange={(e) => filters.setSelectedCampaign(e.target.value)}
-              className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-200 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2 px-3 shadow-sm min-w-[160px]"
+              className="flex-1 sm:flex-none bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-200 text-sm font-medium rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2 sm:p-1.5 px-3 min-w-[160px]"
             >
               <option value="">All Campaigns</option>
               {options.availableCampaigns.map((c: any) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
+                <option key={c} value={c}>{c}</option>
               ))}
             </select>
 
             {(filters.selectedCampaign || filters.startDate) && (
               <button
                 onClick={filters.resetFilters}
-                className="flex items-center gap-1 text-xs font-semibold text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 transition-colors"
+                className="flex items-center justify-center p-2 text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 rounded-lg transition-colors shrink-0"
+                title="Reset Filters"
               >
-                <X className="w-3 h-3" /> Reset
+                <X className="w-4 h-4" />
               </button>
             )}
           </div>
-
-          <div className="ml-auto flex items-center gap-3">
-            <button
-              onClick={sync.handleSync}
-              disabled={sync.isSyncing}
-              className="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 border border-blue-200 dark:border-blue-800 font-medium rounded-lg text-sm px-4 py-2.5 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
-            >
-              <Database
-                className={cn("w-3.5 h-3.5", sync.isSyncing && "animate-pulse")}
-              />
-              {sync.isSyncing ? "Syncing..." : "Sync BQ"}
-            </button>
-            <button
-              onClick={refresh}
-              className="ml-auto flex items-center gap-2 bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:bg-black dark:hover:bg-gray-100 font-medium rounded-lg text-sm px-5 py-2.5 transition-all shadow-lg shadow-gray-200 dark:shadow-none active:scale-95"
-            >
-              <RefreshCcw
-                className={cn("w-3.5 h-3.5", loading && "animate-spin")}
-              />
-              Refresh
-            </button>
-          </div>
         </div>
+
+        {/* Action Buttons */}
+        <div className="flex items-center justify-end gap-3 w-full xl:w-auto pt-4 xl:pt-0 border-t xl:border-t-0 border-gray-100 dark:border-gray-800">
+          <button
+            onClick={sync.handleSync}
+            disabled={sync.isSyncing}
+            className="flex-1 xl:flex-none justify-center flex items-center gap-2 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-100 font-bold rounded-lg text-sm px-4 py-2 transition-all shadow-sm disabled:opacity-50"
+          >
+            <Database className={cn("w-4 h-4", sync.isSyncing && "animate-pulse")} />
+            <span className="whitespace-nowrap">{sync.isSyncing ? "Syncing..." : "Sync BQ"}</span>
+          </button>
+          <button
+            onClick={() => refresh()}
+            className="flex-1 xl:flex-none justify-center flex items-center gap-2 bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:bg-black font-bold rounded-lg text-sm px-5 py-2 transition-all shadow-sm active:scale-95"
+          >
+            <RefreshCcw className={cn("w-4 h-4", loading && "animate-spin")} />
+            <span className="whitespace-nowrap">Refresh</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Main Content Area */}
+      <div className="relative space-y-6">
+        
+        {loading && (
+          <div className="absolute inset-0 z-50 bg-gray-50/50 dark:bg-gray-950/50 backdrop-blur-[2px] flex items-center justify-center rounded-2xl">
+            <div className="bg-white dark:bg-gray-900 p-4 rounded-xl shadow-lg flex items-center gap-3 border border-gray-100 dark:border-gray-800">
+              <RefreshCcw className="w-5 h-5 text-indigo-600 animate-spin" />
+              <span className="font-bold text-gray-900 dark:text-white">Refreshing Data...</span>
+            </div>
+          </div>
+        )}
+
+        {/* Headlines */}
+        <Headlines data={headlines} loading={loading} rawData={rawData} mappedSessions={stats.sessions} />
 
         {/* KPIs */}
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
-          <StatCard
-            title="Sessions"
-            value={stats.sessions.toLocaleString()}
-            icon={MousePointer2}
-            colorClass="bg-blue-500"
-            loading={loading}
-          />
-          <StatCard
-            title="Users"
-            value={stats.users.toLocaleString()}
-            icon={Users}
-            colorClass="bg-indigo-500"
-            loading={loading}
-          />
-          <StatCard
-            title="Pageviews"
-            value={stats.pageviews.toLocaleString()}
-            icon={Eye}
-            colorClass="bg-emerald-500"
-            loading={loading}
-          />
-          <StatCard
-            title="Engagement"
-            value={
-              ((stats.engagement / (data.length || 1)) * 100).toFixed(2) + "%"
-            }
-            icon={Activity}
-            colorClass="bg-amber-500"
-            loading={loading}
-          />
-          <StatCard
-            title="Recurring"
-            value={stats.recurring_users?.toLocaleString() || "0"}
-            icon={UserCheck}
-            colorClass="bg-purple-500"
-            loading={loading}
-          />
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          <StatCard title="Sessions" value={stats.sessions.toLocaleString()} icon={MousePointer2} colorClass="bg-blue-500" loading={loading} />
+          <StatCard title="Users" value={stats.users.toLocaleString()} icon={Users} colorClass="bg-indigo-500" loading={loading} />
+          <StatCard title="Pageviews" value={stats.pageviews.toLocaleString()} icon={Eye} colorClass="bg-emerald-500" loading={loading} />
+          <StatCard title="Engagement" value={((stats.engagement / (data.length || 1)) * 100).toFixed(2) + "%"} icon={Activity} colorClass="bg-amber-500" loading={loading} />
+          <StatCard title="Recurring" value={stats.recurring_users?.toLocaleString() || "0"} icon={UserCheck} colorClass="bg-purple-500" loading={loading} />
         </div>
 
-        {/* Graph + Country */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[470px]">
-          {loading && (
-            <div className="absolute inset-0 z-10 bg-gray-50/60 dark:bg-black/40 backdrop-blur-[2px] flex items-center justify-center rounded-2xl">
-              <div className="bg-white dark:bg-gray-900 p-4 rounded-xl shadow-lg flex items-center gap-3">
-                <RefreshCcw className="w-5 h-5 text-blue-500 animate-spin" />
-                <span className="font-medium">Loading metrics...</span>
-              </div>
-            </div>
-          )}
-          <div className="lg:col-span-2 h-full">
-            <TrafficChart
-              data={data}
-              dateHeaders={options.dateHeaders}
-              stats={stats}
-            />
+        {/* Charts Grid */}
+        <div className="flex flex-col lg:flex-row xl:grid xl:grid-cols-3 gap-6 items-stretch">
+          <div className="w-full lg:w-2/3 xl:w-auto xl:col-span-2 min-h-[300px]">
+            <TrafficChart data={data} dateHeaders={options.dateHeaders} stats={stats} />
           </div>
-          <div className="lg:col-span-1 h-full">
+          <div className="w-full lg:w-1/3 xl:w-auto xl:col-span-1 min-h-[300px]">
             <CountryStats rawData={rawData || []} />
           </div>
         </div>
 
-        <TrafficTable data={data} dateHeaders={options.dateHeaders} />
+        {/* Table */}
+        <div className="w-full pb-4">
+          <TrafficTable data={data} dateHeaders={options.dateHeaders} />
+        </div>
+
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Loader2, CloudDownload, Server } from "lucide-react";
+import { Loader2, CloudDownload } from "lucide-react";
 import { usePathname } from "next/navigation";
 
 export default function GlobalSyncScreen({
@@ -49,85 +49,42 @@ export default function GlobalSyncScreen({
   const isRestrictedPage =
     pathname?.startsWith("/reports") || pathname?.startsWith("/settings");
 
-  if (isSyncing && isRestrictedPage) {
-    const estimatedSeconds = jobsRemaining * 360;
-    const etaMinutes = Math.max(1, Math.ceil(estimatedSeconds / 60));
+  const estimatedSeconds = jobsRemaining * 360;
+  const etaMinutes = Math.max(1, Math.ceil(estimatedSeconds / 60));
 
-    return (
-      <div className="flex items-center justify-center w-full min-h-[75vh] animate-in fade-in duration-300">
-        <div className="bg-white rounded-[24px] shadow-2xl border border-gray-100 w-full max-w-[420px] overflow-hidden animate-in zoom-in-95 duration-500">
-          <div className="bg-slate-50 border-b border-gray-100 p-8 flex flex-col items-center justify-center relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-full overflow-hidden opacity-60">
-              <div className="absolute -top-12 -left-12 w-48 h-48 bg-blue-200 rounded-full mix-blend-multiply filter blur-3xl opacity-70 animate-pulse"></div>
-              <div
-                className="absolute -bottom-12 -right-12 w-48 h-48 bg-indigo-200 rounded-full mix-blend-multiply filter blur-3xl opacity-70 animate-pulse"
-                style={{ animationDelay: "1s" }}
-              ></div>
-            </div>
+  return (
+    <>
+      {children}
 
-            <div className="relative z-10 flex items-center justify-center">
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white shadow-sm border border-gray-100 relative z-10">
-                <CloudDownload size={28} className="text-blue-600" />
-              </div>
-
-              <div className="flex w-16 justify-center gap-1.5 px-2">
-                <div
-                  className="h-1.5 w-1.5 rounded-full bg-blue-400 animate-bounce"
-                  style={{ animationDelay: "0ms" }}
-                ></div>
-                <div
-                  className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-bounce"
-                  style={{ animationDelay: "150ms" }}
-                ></div>
-                <div
-                  className="h-1.5 w-1.5 rounded-full bg-indigo-500 animate-bounce"
-                  style={{ animationDelay: "300ms" }}
-                ></div>
-              </div>
-
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white shadow-sm border border-gray-100 relative z-10">
-                <Server size={28} className="text-indigo-600" />
-                <div className="absolute -bottom-2 -right-2 bg-indigo-600 text-white rounded-full p-1.5 shadow-md">
-                  <Loader2 size={12} className="animate-spin" />
-                </div>
+      {isSyncing && isRestrictedPage && (
+        <div className="fixed bottom-6 right-8 z-50 animate-in slide-in-from-bottom-5 fade-in duration-300">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-blue-100 dark:border-blue-900/30 p-4 w-[320px] flex items-center gap-4">
+            <div className="relative flex shrink-0 h-12 w-12 items-center justify-center rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-600">
+              <CloudDownload size={24} className="animate-pulse" />
+              <div className="absolute -bottom-1 -right-1 bg-indigo-600 text-white rounded-full p-0.5 shadow-sm">
+                <Loader2 size={12} className="animate-spin" />
               </div>
             </div>
-          </div>
 
-          <div className="p-8">
-            <h2 className="text-xl font-bold text-gray-900 text-center mb-2">
-              Syncing your workspace
-            </h2>
-            <p className="text-sm text-gray-500 text-center mb-8 leading-relaxed">
-              We're securely downloading your historical data from Meta. You can
-              safely leave this page, but keeping it open ensures the fastest
-              sync.
-            </p>
+            <div className="flex-1">
+              <h4 className="text-sm font-bold text-gray-900 dark:text-white mb-0.5">
+                Syncing Background Data
+              </h4>
+              <div className="flex items-center justify-between text-xs font-medium text-gray-500 dark:text-gray-400">
+                <span>{jobsRemaining} tasks left</span>
+                <span>~{etaMinutes}m ETA</span>
+              </div>
 
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3 pt-4">
-                <div className="bg-gray-50 rounded-xl p-3.5 border border-gray-100 flex flex-col items-center justify-center text-center shadow-sm">
-                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">
-                    Items Remaining
-                  </p>
-                  <p className="text-xl font-black text-gray-900">
-                    {jobsRemaining}
-                  </p>
-                </div>
-                <div className="bg-gray-50 rounded-xl p-3.5 border border-gray-100 flex flex-col items-center justify-center text-center shadow-sm">
-                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">
-                    Est. Time
-                  </p>
-                  <p className="text-xl font-black text-gray-900">
-                    ~{etaMinutes}m
-                  </p>
-                </div>
+              <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5 mt-2 overflow-hidden">
+                <div
+                  className="bg-blue-600 h-1.5 rounded-full animate-pulse origin-left"
+                  style={{ width: "100%", animationDuration: "2s" }}
+                ></div>
               </div>
             </div>
           </div>
         </div>
-      </div>
-    );
-  }
-  return <>{children}</>;
+      )}
+    </>
+  );
 }

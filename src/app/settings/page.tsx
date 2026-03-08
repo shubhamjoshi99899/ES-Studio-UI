@@ -182,7 +182,7 @@ export default function SettingsPage() {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             credentials: "include",
-            body: JSON.stringify({ days: 30 }),
+            body: JSON.stringify({}), 
           },
         );
       }
