@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from "react";
+import React, { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   TrendingUp,
   TrendingDown,
@@ -17,7 +18,7 @@ import {
   TableProperties,
 } from "lucide-react";
 import { AreaChart, Area, ResponsiveContainer, Tooltip } from "recharts";
-import { METRIC_CONFIG, MetricKey, AggregatedData, Profile } from "../types";
+import { METRIC_CONFIG, MetricKey, Profile } from "../types";
 import DateRangePicker from "../../components/DateRangePicker";
 
 const TrendIndicator = ({ change }: { change: number }) => {
@@ -45,6 +46,24 @@ const getChange = (current: number, previous: number) => {
   return Number((((current - previous) / Math.abs(previous)) * 100).toFixed(1));
 };
 
+// --- React Query Fetch Function ---
+const fetchAggregatedData = async ({ queryKey }: any) => {
+  const [_key, profileIds, startDate, endDate] = queryKey;
+  const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+  
+  const res = await fetch(`${BACKEND_URL}/api/analytics/aggregate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ profileIds, startDate, endDate }),
+  });
+  
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to fetch data");
+  return data;
+};
+
+
 export default function ProfilesTab({ profile }: { profile: Profile | null }) {
   const initEnd = new Date();
   const initStart = new Date();
@@ -71,101 +90,60 @@ export default function ProfilesTab({ profile }: { profile: Profile | null }) {
     initCompEnd.toISOString().split("T")[0],
   );
 
-  const [data, setData] = useState<AggregatedData | null>(null);
-  const [compareData, setCompareData] = useState<AggregatedData | null>(null);
-  const [chartData, setChartData] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-
   const [sortConfig, setSortConfig] = useState<{
     key: string;
     direction: "asc" | "desc";
   }>({ key: "profile", direction: "asc" });
   const [showSettings, setShowSettings] = useState(false);
 
-  useEffect(() => {
-    const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+  // --- Calculate Comparison Dates Upfront for React Query ---
+  let actualCompareStart = compareStartDate;
+  let actualCompareEnd = compareEndDate;
+  if (compareMode === "previous") {
+    const diffTime = Math.abs(
+      new Date(endDate).getTime() - new Date(startDate).getTime(),
+    );
+    const prevEndObj = new Date(
+      new Date(startDate).getTime() - 1000 * 60 * 60 * 24,
+    );
+    const prevStartObj = new Date(prevEndObj.getTime() - diffTime);
+    actualCompareStart = prevStartObj.toISOString().split("T")[0];
+    actualCompareEnd = prevEndObj.toISOString().split("T")[0];
+  }
+
+  // --- React Query: Fetch Current Period ---
+  const { data: currentData, isLoading: loadingCurrent } = useQuery({
+    queryKey: ["aggregate", profile ? [profile.profileId] : [], startDate, endDate],
+    queryFn: fetchAggregatedData,
+    enabled: !!profile,
+    staleTime: 1000 * 60 * 5,
+  });
+
+  // --- React Query: Fetch Comparison Period (Parallel) ---
+  const { data: compareData, isLoading: loadingCompare } = useQuery({
+    queryKey: ["aggregate", profile ? [profile.profileId] : [], actualCompareStart, actualCompareEnd],
+    queryFn: fetchAggregatedData,
+    enabled: !!profile && compareMode !== "none",
+    staleTime: 1000 * 60 * 5,
+  });
+
+  // --- Merge Data for Charts Using useMemo ---
+  const chartData = useMemo(() => {
+    if (!currentData || !currentData.timeSeries) return [];
     
-    if (!profile) return;
-    setLoading(true);
-
-    const fetchCurrent: Promise<AggregatedData> = fetch(
-      `${BACKEND_URL}/api/analytics/aggregate`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          profileIds: [profile.profileId],
-          startDate,
-          endDate,
-        }),
-      },
-    ).then((res) => res.json());
-
-    let fetchCompare: Promise<AggregatedData | null> = Promise.resolve(null);
-
-    if (compareMode !== "none") {
-      let cStart = compareStartDate;
-      let cEnd = compareEndDate;
-
-      if (compareMode === "previous") {
-        const diffTime =
-          new Date(endDate).getTime() - new Date(startDate).getTime();
-        const pEnd = new Date(
-          new Date(startDate).getTime() - 1000 * 60 * 60 * 24,
-        );
-        const pStart = new Date(pEnd.getTime() - diffTime);
-        cStart = pStart.toISOString().split("T")[0];
-        cEnd = pEnd.toISOString().split("T")[0];
+    return currentData.timeSeries.map((point: any, index: number) => {
+      const mergedPoint = { ...point };
+      
+      // Merge comparison data if it exists and comparison mode is active
+      if (compareMode !== "none" && compareData && compareData.timeSeries && compareData.timeSeries[index]) {
+        const compPoint = compareData.timeSeries[index];
+        (Object.keys(METRIC_CONFIG) as MetricKey[]).forEach((key) => {
+          mergedPoint[`prev_${key}`] = Math.round(compPoint[key] || 0);
+        });
       }
-
-      fetchCompare = fetch(`${BACKEND_URL}/api/analytics/aggregate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          profileIds: [profile.profileId],
-          startDate: cStart,
-          endDate: cEnd,
-        }),
-      }).then((res) => res.json());
-    }
-
-    Promise.all([fetchCurrent, fetchCompare])
-      .then(([resCurrent, resCompare]) => {
-        setData(resCurrent);
-        setCompareData(resCompare);
-
-        if (resCurrent && resCurrent.timeSeries) {
-          const merged = resCurrent.timeSeries.map(
-            (point: any, index: number) => {
-              const mergedPoint = { ...point };
-              if (
-                resCompare &&
-                resCompare.timeSeries &&
-                resCompare.timeSeries[index]
-              ) {
-                const compPoint = resCompare.timeSeries[index];
-                (Object.keys(METRIC_CONFIG) as MetricKey[]).forEach((key) => {
-                  mergedPoint[`prev_${key}`] = Math.round(compPoint[key] || 0);
-                });
-              }
-              return mergedPoint;
-            },
-          );
-          setChartData(merged);
-        }
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, [
-    profile,
-    startDate,
-    endDate,
-    compareMode,
-    compareStartDate,
-    compareEndDate,
-  ]);
+      return mergedPoint;
+    });
+  }, [currentData, compareData, compareMode]);
 
   const handlePresetChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const val = e.target.value;
@@ -181,7 +159,7 @@ export default function ProfilesTab({ profile }: { profile: Profile | null }) {
   };
 
   const exportCSV = () => {
-    if (!data || !profile) return;
+    if (!currentData || !profile) return;
     const headers = [
       "Profile",
       "Audience",
@@ -193,12 +171,12 @@ export default function ProfilesTab({ profile }: { profile: Profile | null }) {
     ];
     const row = [
       profile.name,
-      data.totals.currentAudience,
-      data.totals.netGrowth,
-      data.totals.impressions,
-      data.totals.engagements,
-      data.totals.engagementRate,
-      data.totals.videoViews,
+      currentData.totals.currentAudience,
+      currentData.totals.netGrowth,
+      currentData.totals.impressions,
+      currentData.totals.engagements,
+      currentData.totals.engagementRate,
+      currentData.totals.videoViews,
     ];
     const csvContent =
       "data:text/csv;charset=utf-8," + headers.join(",") + "\n" + row.join(",");
@@ -215,6 +193,9 @@ export default function ProfilesTab({ profile }: { profile: Profile | null }) {
     setShowSettings(false);
   };
 
+  // Determine global loading state
+  const loading = loadingCurrent || (compareMode !== "none" && loadingCompare);
+
   if (!profile)
     return (
       <div className="flex h-64 items-center justify-center bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
@@ -223,7 +204,8 @@ export default function ProfilesTab({ profile }: { profile: Profile | null }) {
         </p>
       </div>
     );
-  if (loading || !data) {
+
+  if (loading || !currentData) {
     return (
       <div className="flex h-64 flex-col gap-3 items-center justify-center bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
         <div className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
@@ -233,7 +215,8 @@ export default function ProfilesTab({ profile }: { profile: Profile | null }) {
       </div>
     );
   }
-  if (data.timeSeries.length === 0)
+
+  if (currentData.timeSeries.length === 0)
     return (
       <div className="flex h-64 items-center justify-center text-center p-8 bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
         <p className="text-gray-500 dark:text-gray-400 font-medium">
@@ -253,19 +236,6 @@ export default function ProfilesTab({ profile }: { profile: Profile | null }) {
     year: "numeric",
   });
 
-  let actualCompareStart = compareStartDate;
-  let actualCompareEnd = compareEndDate;
-  if (compareMode === "previous") {
-    const diffTime = Math.abs(
-      new Date(endDate).getTime() - new Date(startDate).getTime(),
-    );
-    const prevEndObj = new Date(
-      new Date(startDate).getTime() - 1000 * 60 * 60 * 24,
-    );
-    const prevStartObj = new Date(prevEndObj.getTime() - diffTime);
-    actualCompareStart = prevStartObj.toISOString().split("T")[0];
-    actualCompareEnd = prevEndObj.toISOString().split("T")[0];
-  }
   const formattedCompareStart = new Date(actualCompareStart).toLocaleDateString(
     "en-US",
     { month: "short", day: "numeric", year: "numeric" },
@@ -275,7 +245,7 @@ export default function ProfilesTab({ profile }: { profile: Profile | null }) {
     { month: "short", day: "numeric", year: "numeric" },
   );
 
-  const { totals } = data;
+  const totals = currentData.totals;
   const compTotals = compareData?.totals;
 
   const handleSort = (key: string) => {
@@ -676,8 +646,8 @@ export default function ProfilesTab({ profile }: { profile: Profile | null }) {
                     <p className="text-xs mt-1 flex justify-end">
                       <TrendIndicator
                         change={getChange(
-                          parseFloat(totals.engagementRate),
-                          parseFloat(compTotals.engagementRate),
+                          parseFloat(String(totals.engagementRate)),
+                          parseFloat(String(compTotals.engagementRate)),
                         )}
                       />
                     </p>

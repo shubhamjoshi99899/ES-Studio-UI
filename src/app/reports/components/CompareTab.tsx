@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Calendar, TrendingUp, TrendingDown, Layers } from "lucide-react";
 import {
   LineChart,
@@ -10,7 +11,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
-import { METRIC_CONFIG, MetricKey, AggregatedData } from "../types";
+import { METRIC_CONFIG, MetricKey } from "../types";
 import DateRangePicker from "../../components/DateRangePicker";
 
 const CustomXAxisTick = ({ x, y, payload, index }: any) => {
@@ -45,6 +46,23 @@ const CustomXAxisTick = ({ x, y, payload, index }: any) => {
   );
 };
 
+// --- React Query Fetch Function ---
+const fetchAggregatedData = async ({ queryKey }: any) => {
+  const [_key, profileIds, startDate, endDate] = queryKey;
+  const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+  
+  const res = await fetch(`${BACKEND_URL}/api/analytics/aggregate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ profileIds, startDate, endDate }),
+  });
+  
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to fetch data from backend");
+  return data;
+};
+
 export default function CompareTab({
   selectedProfileIds,
   activePlatform,
@@ -62,52 +80,18 @@ export default function CompareTab({
   );
   const [endDate, setEndDate] = useState(initEnd.toISOString().split("T")[0]);
 
-  const [aggData, setAggData] = useState<AggregatedData | null>(null);
-  const [loading, setLoading] = useState(true);
-
   const [selectedMetrics, setSelectedMetrics] = useState<MetricKey[]>([
     "impressions",
     "engagements",
   ]);
 
-  useEffect(() => {
-    const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
-    
-    if (selectedProfileIds.length === 0) {
-      setAggData(null);
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    fetch(`${BACKEND_URL}/api/analytics/aggregate`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({
-        profileIds: selectedProfileIds,
-        startDate,
-        endDate,
-      }),
-    })
-      .then(async (res) => {
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Failed to fetch data");
-        return data;
-      })
-      .then((data) => {
-        if (data && data.timeSeries) {
-          setAggData(data);
-        } else {
-          setAggData(null);
-        }
-      })
-      .catch((err) => {
-        console.error(err);
-        setAggData(null);
-      })
-      .finally(() => setLoading(false));
-  }, [selectedProfileIds, startDate, endDate]);
+  // --- React Query Implementation ---
+  const { data: aggData, isLoading: loading } = useQuery({
+    queryKey: ["aggregate", selectedProfileIds, startDate, endDate],
+    queryFn: fetchAggregatedData,
+    enabled: selectedProfileIds.length > 0, // Only fetch if profiles are selected
+    staleTime: 1000 * 60 * 5, // Cache for 5 minutes
+  });
 
   const handlePresetChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const val = e.target.value;
@@ -149,7 +133,7 @@ export default function CompareTab({
     );
   }
 
-  const hasData = aggData && aggData.timeSeries.length > 0;
+  const hasData = aggData && aggData.timeSeries && aggData.timeSeries.length > 0;
 
   return (
     <div className="space-y-6">
