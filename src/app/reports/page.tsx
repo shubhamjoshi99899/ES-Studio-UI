@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   ChevronDown,
   CheckSquare,
@@ -10,13 +11,13 @@ import {
   Facebook,
   Instagram,
   AlertTriangle,
+  Search,
 } from "lucide-react";
 import { Profile } from "./types";
 import OverviewTab from "./components/OverviewTab";
 import ProfilesTab from "./components/ProfilesTab";
 import PostInsightsTab from "./components/PostInsightsTab";
 import CompareTab from "./components/CompareTab";
-import { useQuery } from "@tanstack/react-query";
 
 const fetchProfiles = async (): Promise<Profile[]> => {
   const BACKEND_URL =
@@ -41,14 +42,17 @@ export default function ReportsPage() {
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(
     null,
   );
+
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const { data: profiles = [], isLoading } = useQuery({
     queryKey: ["profiles-list"],
     queryFn: fetchProfiles,
     staleTime: 1000 * 60 * 5,
   });
+
   useEffect(() => {
     if (profiles.length > 0 && !isInitialized) {
       const fbProfiles = profiles.filter((p) => p.platform === activePlatform);
@@ -68,35 +72,41 @@ export default function ReportsPage() {
       setSelectedProfileId(null);
     }
     setIsDropdownOpen(false);
+    setSearchQuery(""); // Clear search on platform switch
   };
 
   const currentPlatformProfiles = profiles.filter(
     (p) => p.platform === activePlatform,
   );
+
+  const filteredProfiles = currentPlatformProfiles.filter((p) =>
+    p.name.toLowerCase().includes(searchQuery.toLowerCase()),
+  );
+
   const isMultiSelectView =
     activeSubTab === "overview" || activeSubTab === "compare";
+
   const isAllSelected =
-    currentPlatformProfiles.length > 0 &&
-    currentPlatformProfiles.every((p) =>
-      selectedProfileIds.includes(p.profileId),
-    );
+    filteredProfiles.length > 0 &&
+    filteredProfiles.every((p) => selectedProfileIds.includes(p.profileId));
 
   const toggleSelectAll = () => {
-    if (isAllSelected)
+    if (isAllSelected) {
       setSelectedProfileIds(
         selectedProfileIds.filter(
-          (id) => !currentPlatformProfiles.map((p) => p.profileId).includes(id),
+          (id) => !filteredProfiles.map((p) => p.profileId).includes(id),
         ),
       );
-    else
+    } else {
       setSelectedProfileIds(
         Array.from(
           new Set([
             ...selectedProfileIds,
-            ...currentPlatformProfiles.map((p) => p.profileId),
+            ...filteredProfiles.map((p) => p.profileId),
           ]),
         ),
       );
+    }
   };
 
   const toggleMultiProfile = (id: string) => {
@@ -108,6 +118,7 @@ export default function ReportsPage() {
   const selectSingleProfile = (id: string) => {
     setSelectedProfileId(id);
     setIsDropdownOpen(false);
+    setSearchQuery("");
   };
 
   const errorProfiles = profiles.filter(
@@ -191,8 +202,26 @@ export default function ReportsPage() {
                 </button>
 
                 {isDropdownOpen && (
-                  <div className="absolute top-full left-0 mt-2 w-72 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-lg shadow-xl z-20 overflow-hidden">
-                    {isMultiSelectView && (
+                  <div className="absolute top-full left-0 mt-2 w-72 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-lg shadow-xl z-20 overflow-hidden flex flex-col">
+                    {/* --- NEW: Search Input --- */}
+                    <div className="p-2 border-b border-gray-100 dark:border-gray-800">
+                      <div className="relative">
+                        <Search
+                          size={14}
+                          className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Search pages..."
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          className="w-full pl-8 pr-3 py-1.5 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md outline-none focus:ring-1 focus:ring-blue-500 transition-shadow text-gray-700 dark:text-gray-200"
+                          autoFocus
+                        />
+                      </div>
+                    </div>
+
+                    {isMultiSelectView && filteredProfiles.length > 0 && (
                       <div className="p-2 border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
                         <button
                           onClick={toggleSelectAll}
@@ -209,54 +238,61 @@ export default function ReportsPage() {
                               className="text-gray-400 dark:text-gray-500"
                             />
                           )}
-                          Select All
+                          Select All Resulting
                         </button>
                       </div>
                     )}
+
                     <div className="max-h-60 overflow-y-auto p-2 space-y-1">
-                      {currentPlatformProfiles.map((profile) => {
-                        const isSelectedMulti = selectedProfileIds.includes(
-                          profile.profileId,
-                        );
-                        const isSelectedSingle =
-                          selectedProfileId === profile.profileId;
-                        return (
-                          <button
-                            key={profile.profileId}
-                            onClick={() =>
-                              isMultiSelectView
-                                ? toggleMultiProfile(profile.profileId)
-                                : selectSingleProfile(profile.profileId)
-                            }
-                            className={`flex items-center gap-3 w-full text-left px-2 py-2 text-sm transition-colors rounded-md ${(isMultiSelectView ? isSelectedMulti : isSelectedSingle) ? "bg-blue-50/50 dark:bg-blue-900/20 text-gray-900 dark:text-white font-bold" : "text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 font-medium"}`}
-                          >
-                            {isMultiSelectView ? (
-                              isSelectedMulti ? (
-                                <CheckSquare
+                      {filteredProfiles.length === 0 ? (
+                        <div className="text-center py-4 text-sm text-gray-500 dark:text-gray-400">
+                          No pages found
+                        </div>
+                      ) : (
+                        filteredProfiles.map((profile) => {
+                          const isSelectedMulti = selectedProfileIds.includes(
+                            profile.profileId,
+                          );
+                          const isSelectedSingle =
+                            selectedProfileId === profile.profileId;
+                          return (
+                            <button
+                              key={profile.profileId}
+                              onClick={() =>
+                                isMultiSelectView
+                                  ? toggleMultiProfile(profile.profileId)
+                                  : selectSingleProfile(profile.profileId)
+                              }
+                              className={`flex items-center gap-3 w-full text-left px-2 py-2 text-sm transition-colors rounded-md ${(isMultiSelectView ? isSelectedMulti : isSelectedSingle) ? "bg-blue-50/50 dark:bg-blue-900/20 text-gray-900 dark:text-white font-bold" : "text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 font-medium"}`}
+                            >
+                              {isMultiSelectView ? (
+                                isSelectedMulti ? (
+                                  <CheckSquare
+                                    size={18}
+                                    className="text-blue-600 dark:text-blue-400 flex-shrink-0"
+                                  />
+                                ) : (
+                                  <Square
+                                    size={18}
+                                    className="text-gray-300 dark:text-gray-600 flex-shrink-0"
+                                  />
+                                )
+                              ) : isSelectedSingle ? (
+                                <CheckCircle2
                                   size={18}
                                   className="text-blue-600 dark:text-blue-400 flex-shrink-0"
                                 />
                               ) : (
-                                <Square
+                                <Circle
                                   size={18}
                                   className="text-gray-300 dark:text-gray-600 flex-shrink-0"
                                 />
-                              )
-                            ) : isSelectedSingle ? (
-                              <CheckCircle2
-                                size={18}
-                                className="text-blue-600 dark:text-blue-400 flex-shrink-0"
-                              />
-                            ) : (
-                              <Circle
-                                size={18}
-                                className="text-gray-300 dark:text-gray-600 flex-shrink-0"
-                              />
-                            )}
-                            <span className="truncate">{profile.name}</span>
-                          </button>
-                        );
-                      })}
+                              )}
+                              <span className="truncate">{profile.name}</span>
+                            </button>
+                          );
+                        })
+                      )}
                     </div>
                   </div>
                 )}
