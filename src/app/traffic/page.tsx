@@ -122,7 +122,7 @@ export function MappingsView({ onBack }: { onBack: () => void }) {
 
   const handleUpdateTeam = async (
     id: number | undefined,
-    currentTeam: string | undefined,
+    currentTeam: string | null | undefined,
   ) => {
     if (!id) return;
     const updatedTeam = prompt("Enter new team name:", currentTeam || "");
