@@ -21,7 +21,7 @@ import CompareTab from "./components/CompareTab";
 
 const fetchProfiles = async (): Promise<Profile[]> => {
   const BACKEND_URL =
-    process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+    process.env.NEXT_PUBLIC_API_URL || "";
   const res = await fetch(`${BACKEND_URL}/api/analytics/profiles/list`, {
     credentials: "include",
   });

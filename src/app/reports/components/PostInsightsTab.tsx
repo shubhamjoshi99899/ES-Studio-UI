@@ -55,7 +55,7 @@ type SortMetric =
 // --- React Query Fetch Function ---
 const fetchPostsData = async ({ queryKey }: any) => {
   const [_key, profileIds, startDate, endDate] = queryKey;
-  const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+  const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "";
   
   const res = await fetch(`${BACKEND_URL}/api/analytics/posts`, {
     method: "POST",

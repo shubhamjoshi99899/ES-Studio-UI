@@ -50,7 +50,7 @@ const getChange = (current: number, previous: number) => {
 // --- React Query Fetch Function ---
 const fetchAggregatedData = async ({ queryKey }: any) => {
   const [_key, profileIds, startDate, endDate] = queryKey;
-  const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+  const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "";
   
   const res = await fetch(`${BACKEND_URL}/api/analytics/aggregate`, {
     method: "POST",
@@ -66,7 +66,7 @@ const fetchAggregatedData = async ({ queryKey }: any) => {
 
 const fetchProfileDemographics = async ({ queryKey }: any) => {
   const [_key, profileId] = queryKey;
-  const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+  const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "";
   
   const res = await fetch(`${BACKEND_URL}/api/analytics/demographics/${profileId}`, {
     credentials: "include",

@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { Database, RefreshCw } from "lucide-react";
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
 export default function DebugPage() {
   const [profiles, setProfiles] = useState<any[]>([]);

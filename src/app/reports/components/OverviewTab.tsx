@@ -57,7 +57,7 @@ const CustomXAxisTick = ({ x, y, payload, index }: any) => {
 // --- React Query Fetch Function ---
 const fetchAggregatedData = async ({ queryKey }: any) => {
   const [_key, profileIds, startDate, endDate] = queryKey;
-  const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+  const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "";
   
   const res = await fetch(`${BACKEND_URL}/api/analytics/aggregate`, {
     method: "POST",
@@ -73,7 +73,7 @@ const fetchAggregatedData = async ({ queryKey }: any) => {
 
 const fetchAggregatedDemographics = async ({ queryKey }: any) => {
   const [_key, profileIds] = queryKey;
-  const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+  const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "";
   
   const res = await fetch(`${BACKEND_URL}/api/analytics/demographics/aggregate`, {
     method: "POST",

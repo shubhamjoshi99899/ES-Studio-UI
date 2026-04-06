@@ -21,7 +21,7 @@ export default function GlobalSyncScreen({
   useEffect(() => {
     const checkSyncStatus = async () => {
       const BACKEND_URL =
-        process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+        process.env.NEXT_PUBLIC_API_URL || "";
       try {
         const res = await fetch(`${BACKEND_URL}/api/auth/meta/sync-status`, {
           credentials: "include",
