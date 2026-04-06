@@ -5,11 +5,12 @@ import {
   fetchPageMappings,
   createPageMapping,
   deletePageMapping,
+  updatePageMapping,
   importPageMappingsCSV,
   importLegacyDataCSV,
 } from "@/lib/api";
 import { MappingEntry } from "@/data/page-mapping";
-import { Trash2, Plus, ArrowLeft, UploadCloud, Loader2 } from "lucide-react";
+import { Trash2, Plus, ArrowLeft, UploadCloud, Loader2, X, Users } from "lucide-react";
 import Link from "next/link";
 
 interface MappingWithId extends MappingEntry {
@@ -22,16 +23,26 @@ export default function PageMappingsSettings() {
 
   // Single Entry States
   const [newCategory, setNewCategory] = useState("");
+  const [newTeam, setNewTeam] = useState("");
   const [newPlatform, setNewPlatform] = useState("Facebook");
   const [newPageName, setNewPageName] = useState("");
   const [newUtmSource, setNewUtmSource] = useState("fb");
   const [newMediums, setNewMediums] = useState("");
+
+  // Team Management
+  const [newTeamName, setNewTeamName] = useState("");
+  const [isAddingTeam, setIsAddingTeam] = useState(false);
 
   // Upload States
   const [isUploadingMapping, setIsUploadingMapping] = useState(false);
   const [isUploadingAnalytics, setIsUploadingAnalytics] = useState(false);
   const mappingFileInputRef = useRef<HTMLInputElement>(null);
   const analyticsFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Derive unique teams from mappings
+  const existingTeams = Array.from(
+    new Set(mappings.map((m) => m.team).filter(Boolean) as string[])
+  ).sort();
 
   useEffect(() => {
     loadMappings();
@@ -55,6 +66,7 @@ export default function PageMappingsSettings() {
 
     const newEntry: MappingEntry = {
       category: newCategory || "Uncategorized",
+      team: newTeam || undefined,
       platform: newPlatform,
       pageName: newPageName,
       utmSource: newUtmSource,
@@ -76,6 +88,35 @@ export default function PageMappingsSettings() {
     if (confirm("Are you sure you want to delete this mapping?")) {
       await deletePageMapping(id);
       loadMappings();
+    }
+  };
+
+  const handleTeamChange = async (mappingId: number | undefined, team: string | null) => {
+    if (!mappingId) return;
+    try {
+      await updatePageMapping(mappingId, { team });
+      loadMappings();
+    } catch (err) {
+      console.error("Failed to update team", err);
+    }
+  };
+
+  const handleRemoveTeam = async (teamName: string) => {
+    const pagesWithTeam = mappings.filter((m) => m.team === teamName);
+    if (
+      !confirm(
+        `Remove team "${teamName}"? This will unassign ${pagesWithTeam.length} page(s) from this team.`
+      )
+    )
+      return;
+
+    try {
+      for (const m of pagesWithTeam) {
+        if (m.id) await updatePageMapping(m.id, { team: null });
+      }
+      loadMappings();
+    } catch (err) {
+      console.error("Failed to remove team", err);
     }
   };
 
@@ -178,12 +219,63 @@ export default function PageMappingsSettings() {
           </div>
         </div>
 
+        {/* Team Management */}
+        <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800">
+          <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+            <Users className="w-5 h-5 text-purple-500" /> Team Management
+          </h2>
+          <div className="flex flex-wrap gap-2 mb-4">
+            {existingTeams.length === 0 && (
+              <p className="text-sm text-gray-500">No teams yet. Add one below.</p>
+            )}
+            {existingTeams.map((team) => (
+              <span
+                key={team}
+                className="inline-flex items-center gap-1.5 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 px-3 py-1.5 rounded-full text-sm font-medium border border-purple-200 dark:border-purple-800"
+              >
+                {team}
+                <button
+                  onClick={() => handleRemoveTeam(team)}
+                  className="hover:bg-purple-200 dark:hover:bg-purple-800 rounded-full p-0.5 transition"
+                  title={`Remove team "${team}"`}
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </span>
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              className="flex-1 max-w-xs p-2 rounded border border-gray-300 dark:border-gray-700 bg-transparent text-sm"
+              value={newTeamName}
+              onChange={(e) => setNewTeamName(e.target.value)}
+              placeholder="New team name"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  if (newTeamName.trim() && !existingTeams.includes(newTeamName.trim())) {
+                    setIsAddingTeam(true);
+                    // To "create" a team, we just need it assigned to at least one mapping.
+                    // For now, just add it to the local list by creating a placeholder —
+                    // teams are derived from mappings, so we inform the user.
+                    setNewTeamName("");
+                    setIsAddingTeam(false);
+                  }
+                }
+              }}
+            />
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Teams are created by assigning them to pages below. Type a new team name in the mapping form.
+            </p>
+          </div>
+        </div>
+
         {/* Add New Single Mapping Form */}
         <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800">
           <h2 className="text-xl font-semibold mb-4">Add Single Mapping</h2>
           <form
             onSubmit={handleAdd}
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 items-end"
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-4 items-end"
           >
             <div className="space-y-1">
               <label className="text-xs font-bold uppercase text-gray-500">
@@ -209,6 +301,25 @@ export default function PageMappingsSettings() {
                 <option value="Threads">Threads</option>
               </select>
             </div>
+            <div className="space-y-1">
+              <label className="text-xs font-bold uppercase text-gray-500">
+                Team
+              </label>
+              <div className="relative">
+                <input
+                  className="w-full p-2 rounded border border-gray-300 dark:border-gray-700 bg-transparent"
+                  value={newTeam}
+                  onChange={(e) => setNewTeam(e.target.value)}
+                  placeholder="Type or select team"
+                  list="team-options"
+                />
+                <datalist id="team-options">
+                  {existingTeams.map((t) => (
+                    <option key={t} value={t} />
+                  ))}
+                </datalist>
+              </div>
+            </div>
             <div className="space-y-1 lg:col-span-2">
               <label className="text-xs font-bold uppercase text-gray-500">
                 Page Name
@@ -231,7 +342,7 @@ export default function PageMappingsSettings() {
                 placeholder="uss_page_1, uss_page_2"
               />
             </div>
-            <div className="lg:col-span-6 flex justify-end">
+            <div className="lg:col-span-7 flex justify-end">
               <button
                 type="submit"
                 className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition"
@@ -248,6 +359,7 @@ export default function PageMappingsSettings() {
             <thead className="bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 font-bold uppercase text-xs">
               <tr>
                 <th className="px-6 py-4">Category</th>
+                <th className="px-6 py-4">Team</th>
                 <th className="px-6 py-4">Platform</th>
                 <th className="px-6 py-4">Page Name</th>
                 <th className="px-6 py-4">UTM Mediums</th>
@@ -257,14 +369,14 @@ export default function PageMappingsSettings() {
             <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center flex flex-col items-center justify-center text-gray-500">
+                  <td colSpan={6} className="px-6 py-8 text-center flex flex-col items-center justify-center text-gray-500">
                     <Loader2 className="w-6 h-6 animate-spin mb-2" />
                     Loading mappings...
                   </td>
                 </tr>
               ) : mappings.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
                     No mappings found. Add one above or upload a CSV.
                   </td>
                 </tr>
@@ -275,6 +387,22 @@ export default function PageMappingsSettings() {
                     className="hover:bg-gray-50 dark:hover:bg-gray-800/50"
                   >
                     <td className="px-6 py-4 font-medium">{m.category}</td>
+                    <td className="px-6 py-4">
+                      <select
+                        className="bg-transparent border border-gray-300 dark:border-gray-700 rounded px-2 py-1 text-sm w-full min-w-[100px]"
+                        value={m.team || ""}
+                        onChange={(e) =>
+                          handleTeamChange(m.id, e.target.value || null)
+                        }
+                      >
+                        <option value="">No Team</option>
+                        {existingTeams.map((t) => (
+                          <option key={t} value={t}>
+                            {t}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
                     <td className="px-6 py-4">{m.platform}</td>
                     <td className="px-6 py-4 font-bold text-blue-600 dark:text-blue-400">
                       {m.pageName}
