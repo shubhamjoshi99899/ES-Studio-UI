@@ -6,6 +6,14 @@ export interface Profile {
   lastSyncError?: string;
 }
 
+export interface DemographicData {
+  genderAge: Record<string, number>;
+  topCities: Record<string, number>;
+  topCountries: Record<string, number>;
+  date?: string;
+  platform?: string;
+}
+
 export interface AggregatedData {
   timeSeries: Array<{
     date: string;
@@ -19,6 +27,7 @@ export interface AggregatedData {
     pageViews: number;
     videoViews: number;
     messages: number;
+    revenue: number;
   }>;
   totals: {
     currentAudience: number;
@@ -37,6 +46,8 @@ export interface AggregatedData {
     videoViewsChange: string;
     messages: number;
     messagesChange: string;
+    revenue: number;
+    revenueChange: string;
   };
 }
 
@@ -47,7 +58,8 @@ export type MetricKey =
   | "engagementRate"
   | "pageViews"
   | "videoViews"
-  | "messages";
+  | "messages"
+  | "revenue";
 
 export const METRIC_CONFIG: Record<MetricKey, any> = {
   netFollowers: {
@@ -121,5 +133,16 @@ export const METRIC_CONFIG: Record<MetricKey, any> = {
     valueKey: "messages",
     changeKey: "messagesChange",
     suffix: "",
+  },
+  revenue: {
+    label: "Revenue",
+    title: "Revenue",
+    desc: "Track your daily earnings from the Content Monetization Program.",
+    color: "#16a34a",
+    type: "area",
+    valueKey: "revenue",
+    changeKey: "revenueChange",
+    suffix: "",
+    fbOnly: true,
   },
 };

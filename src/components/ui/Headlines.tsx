@@ -6,12 +6,12 @@ import {
   Database,
   AlertCircle,
 } from "lucide-react";
-import { HeadlineData, BackendMetric } from "@/types";
+import { HeadlineData } from "@/types";
 
 interface HeadlinesProps {
   data: HeadlineData | null;
   loading: boolean;
-  rawData: BackendMetric[];
+  rawData: { sessions: number | string }[];
   mappedSessions: number;
 }
 

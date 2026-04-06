@@ -80,7 +80,7 @@ export default function Dashboard() {
     };
 
     fetchDashboardData();
-  }, [dateRange]);
+  }, [dateRange.startDate, dateRange.endDate]);
 
   const MetricCard = ({ title, value, change, link, suffix = "" }: any) => {
     const isPositive = Number(change) >= 0;
@@ -98,7 +98,7 @@ export default function Dashboard() {
             {title}
           </p>
           <div className="flex items-end justify-between">
-            <p className="text-3xl font-bold text-gray-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+            <p className="text-2xl xl:text-3xl font-bold text-gray-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
               {value !== undefined
                 ? `${Number(value).toLocaleString()}${suffix}`
                 : "..."}
@@ -233,7 +233,7 @@ export default function Dashboard() {
             </div>
 
             {metaData?.totals ? (
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                 <MetricCard
                   title="Total Audience"
                   value={metaData.totals.currentAudience}

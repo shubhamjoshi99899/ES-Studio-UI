@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   BarChart2,
   BarChart3,
+  DollarSign,
   Settings,
   Sparkles,
   ChevronLeft,
@@ -17,6 +18,7 @@ const navItems = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Web Traffic", href: "/traffic", icon: BarChart3 },
   { name: "Reports", href: "/reports", icon: BarChart2 },
+  { name: "Revenue", href: "/revenue", icon: DollarSign },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
 
@@ -30,7 +32,7 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: SidebarProps) {
 
   return (
     <aside
-      className={`fixed left-0 top-0 z-40 flex h-screen flex-col border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 transition-all duration-300 ${isCollapsed ? "w-20" : "w-64"}`}
+      className={`fixed left-0 top-0 z-40 flex h-screen flex-col border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 transition-all duration-300 ${isCollapsed ? "w-16" : "w-56"}`}
     >
       {/* Logo Area */}
       <div className="flex h-16 items-center px-4 overflow-hidden">

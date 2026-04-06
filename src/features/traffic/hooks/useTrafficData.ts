@@ -1,9 +1,11 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  fetchAnalyticsData,
+  fetchAggregatedData,
+  fetchAvailableCampaigns,
   fetchHeadlines,
-  processDataForDashboard,
+  fetchCountryStats,
+  processAggregatedData,
   fetchPageMappings,
   triggerManualSync,
 } from "@/lib/api";
@@ -38,42 +40,59 @@ export function useTrafficData() {
   });
 
   // 3. React Query: Fetch Headlines
-  const { data: headlines = null, isLoading: loadingHeadlines } = useQuery({
+  const { data: headlines = null, isLoading: loadingHeadlines, isFetching: fetchingHeadlines } = useQuery({
     queryKey: ["headlines", utmSource],
     queryFn: () => fetchHeadlines(utmSource),
   });
 
-  // 4. React Query: Fetch Raw Analytics Data
-  const { 
-    data: rawData = [], 
+  // 4. React Query: Fetch Aggregated Analytics Data (OPTIMIZED)
+  // Uses new endpoint that groups by (date, utmMedium) server-side
+  // Campaign filter is passed to server to avoid fetching unnecessary data
+  const {
+    data: rawData = [],
     isLoading: loadingData,
-    refetch: refreshAnalytics
+    isFetching: fetchingData,
   } = useQuery({
-    queryKey: ["analytics", utmSource, startDate, endDate],
-    queryFn: () => fetchAnalyticsData(startDate, endDate, utmSource),
-    // Query only runs if we have start and end dates
+    queryKey: ["analytics-aggregated", utmSource, startDate, endDate, selectedCampaign],
+    queryFn: () => fetchAggregatedData(startDate, endDate, utmSource, selectedCampaign || undefined),
     enabled: !!startDate && !!endDate,
+  });
+
+  // 4b. React Query: Fetch Country Stats (lightweight, separate from main data)
+  const { data: countryStats = [], isFetching: fetchingCountry } = useQuery({
+    queryKey: ["countryStats", utmSource, startDate, endDate],
+    queryFn: () => fetchCountryStats(startDate, endDate, utmSource),
+    enabled: !!startDate && !!endDate,
+  });
+
+  // 4c. React Query: Fetch available campaigns (lightweight, separate query)
+  const { data: availableCampaigns = [], isFetching: fetchingCampaigns } = useQuery({
+    queryKey: ["campaigns", utmSource, startDate, endDate],
+    queryFn: () => fetchAvailableCampaigns(startDate, endDate, utmSource),
+    enabled: !!startDate && !!endDate,
+    staleTime: 1000 * 60 * 5, // Cache campaign list for 5 min
   });
 
   // 5. React Query: Mutation for Manual Sync
   const syncMutation = useMutation({
     mutationFn: triggerManualSync,
     onSuccess: () => {
-      // Invalidate the cache to trigger a fresh background fetch automatically
-      queryClient.invalidateQueries({ queryKey: ["analytics"] });
+      queryClient.invalidateQueries({ queryKey: ["analytics-aggregated"] });
+      queryClient.invalidateQueries({ queryKey: ["countryStats"] });
       queryClient.invalidateQueries({ queryKey: ["headlines"] });
+      queryClient.invalidateQueries({ queryKey: ["campaigns"] });
     },
     onError: () => {
       alert("Failed to sync BigQuery data. Check console for details.");
     }
   });
 
-  // 6. Derived Data (Only recalculates if rawData, platform, or selectedCampaign changes)
+  // 6. Derived Data (Only recalculates if rawData or selectedCampaign changes)
   const data = useMemo(() => {
     if (!rawData.length) return [];
-    const processed = processDataForDashboard(rawData, platform, selectedCampaign, mappings);
+    const processed = processAggregatedData(rawData, selectedCampaign, mappings);
     return processed.sort((a, b) => b.totals.sessions - a.totals.sessions);
-  }, [rawData, platform, selectedCampaign, mappings]);
+  }, [rawData, selectedCampaign, mappings]);
 
   // 7. Filter Handlers
   const applyPreset = (preset: "30days" | "prevWeek" | "thisMonth" | "last7Days") => {
@@ -109,10 +128,6 @@ export function useTrafficData() {
     }
   }, [startDate, endDate]);
 
-  const availableCampaigns = useMemo(() => {
-    return Array.from(new Set(rawData.map((r) => r.utm_campaign).filter(Boolean))).sort();
-  }, [rawData]);
-
   const stats = useMemo(() => {
     return data.reduce((acc, curr) => ({
       sessions: acc.sessions + curr.totals.sessions,
@@ -124,11 +139,12 @@ export function useTrafficData() {
     }), { sessions: 0, users: 0, pageviews: 0, engagement: 0, recurring_users: 0, identified_users: 0 });
   }, [data]);
 
-  const loading = loadingData || loadingHeadlines || loadingMappings;
+  const loading = loadingData || loadingHeadlines || loadingMappings || fetchingData || fetchingHeadlines || fetchingCountry || fetchingCampaigns;
 
   return {
     data,
     rawData,
+    countryStats,
     headlines,
     loading,
     filters: {
@@ -137,10 +153,15 @@ export function useTrafficData() {
     },
     options: { dateHeaders, availableCampaigns },
     stats,
-    refresh: refreshAnalytics,
-    sync: { 
-      isSyncing: syncMutation.isPending, 
-      handleSync: () => syncMutation.mutate() 
+    refresh: () => {
+      queryClient.invalidateQueries({ queryKey: ["analytics-aggregated"] });
+      queryClient.invalidateQueries({ queryKey: ["headlines"] });
+      queryClient.invalidateQueries({ queryKey: ["countryStats"] });
+      queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+    },
+    sync: {
+      isSyncing: syncMutation.isPending,
+      handleSync: () => syncMutation.mutate(),
     },
   };
 }

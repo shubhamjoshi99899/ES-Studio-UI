@@ -16,6 +16,10 @@ import {
   Clock,
   RefreshCw,
   LogOut,
+  Mail,
+  Trash2,
+  Plus,
+  Send,
 } from "lucide-react";
 
 declare global {
@@ -57,6 +61,14 @@ export default function SettingsPage() {
   const [showDisconnectModal, setShowDisconnectModal] = useState(false);
   const [deleteDataOnDisconnect, setDeleteDataOnDisconnect] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
+
+  // Email report recipients
+  const [recipients, setRecipients] = useState<{ id: number; email: string; isActive: boolean; createdAt: string }[]>([]);
+  const [newEmail, setNewEmail] = useState("");
+  const [isAddingEmail, setIsAddingEmail] = useState(false);
+  const [removingId, setRemovingId] = useState<number | null>(null);
+  const [isSendingTest, setIsSendingTest] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -103,6 +115,76 @@ export default function SettingsPage() {
     };
     checkConnectionStatus();
   }, []);
+
+  // Fetch email report recipients
+  useEffect(() => {
+    const fetchRecipients = async () => {
+      try {
+        const res = await fetch(`${BACKEND_URL}/v1/email-reports/recipients`, {
+          credentials: "include",
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) setRecipients(data);
+        }
+      } catch (err) {}
+    };
+    fetchRecipients();
+  }, []);
+
+  const handleAddRecipient = async () => {
+    const email = newEmail.trim();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
+    setIsAddingEmail(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/v1/email-reports/recipients`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email }),
+      });
+      if (res.ok) {
+        const added = await res.json();
+        setRecipients((prev) => {
+          const exists = prev.find((r) => r.id === added.id);
+          if (exists) return prev.map((r) => (r.id === added.id ? added : r));
+          return [...prev, added];
+        });
+        setNewEmail("");
+      }
+    } catch (err) {}
+    setIsAddingEmail(false);
+  };
+
+  const handleRemoveRecipient = async (id: number) => {
+    setRemovingId(id);
+    try {
+      const res = await fetch(`${BACKEND_URL}/v1/email-reports/recipients/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (res.ok) {
+        setRecipients((prev) => prev.filter((r) => r.id !== id));
+      }
+    } catch (err) {}
+    setRemovingId(null);
+  };
+
+  const handleSendTestReport = async () => {
+    setIsSendingTest(true);
+    setTestResult(null);
+    try {
+      const res = await fetch(`${BACKEND_URL}/v1/email-reports/send-test`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const data = await res.json();
+      setTestResult(data);
+    } catch (err) {
+      setTestResult({ success: false, message: "Failed to send test report" });
+    }
+    setIsSendingTest(false);
+  };
 
   const handleConnect = () => {
     if (!isSdkLoaded) return;
@@ -429,6 +511,110 @@ export default function SettingsPage() {
               </div>
             </div>
 
+          </div>
+        </div>
+      </div>
+
+      {/* Email Reports Section */}
+      <div className="pt-4">
+        <h2 className="mb-4 text-base font-bold text-gray-900 dark:text-white">Email Reports</h2>
+        <div className="rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm overflow-hidden">
+          <div className="p-6 border-b border-gray-50 dark:border-gray-800/50">
+            <div className="flex items-start gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 shadow-sm shrink-0">
+                <Mail size={24} />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-sm font-bold text-gray-900 dark:text-white">Automated Daily & Weekly Reports</h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                  Daily reports are sent at 7:00 AM IST with yesterday's data. Weekly reports are sent every Monday with the previous week's data. Reports include Traffic, Revenue, and Meta Overview as CSV attachments.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Add email form */}
+          <div className="p-6 border-b border-gray-50 dark:border-gray-800/50">
+            <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider block mb-3">Add Recipient</label>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-3 py-2.5 flex-1">
+                <Mail size={16} className="text-gray-400 dark:text-gray-500 shrink-0" />
+                <input
+                  type="email"
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleAddRecipient(); }}
+                  placeholder="Enter email address..."
+                  className="w-full bg-transparent text-sm text-gray-900 dark:text-white outline-none placeholder:text-gray-400"
+                />
+              </div>
+              <button
+                onClick={handleAddRecipient}
+                disabled={isAddingEmail || !newEmail.trim()}
+                className="flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-indigo-700 transition-all disabled:opacity-50 shrink-0"
+              >
+                {isAddingEmail ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+                Add
+              </button>
+            </div>
+          </div>
+
+          {/* Recipients list */}
+          <div className="p-6 border-b border-gray-50 dark:border-gray-800/50">
+            <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider block mb-3">
+              Recipients ({recipients.filter(r => r.isActive).length})
+            </label>
+            {recipients.length === 0 ? (
+              <div className="text-center py-6 text-gray-400 dark:text-gray-500 text-sm">
+                No recipients added yet. Add an email address above to start receiving reports.
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-64 overflow-y-auto pr-1 custom-scrollbar">
+                {recipients.filter(r => r.isActive).map((recipient) => (
+                  <div
+                    key={recipient.id}
+                    className="flex items-center justify-between bg-gray-50 dark:bg-gray-800 rounded-xl px-4 py-3 border border-gray-100 dark:border-gray-700/50 group"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 shrink-0">
+                        <Mail size={14} />
+                      </div>
+                      <span className="text-sm font-medium text-gray-900 dark:text-white truncate">{recipient.email}</span>
+                    </div>
+                    <button
+                      onClick={() => handleRemoveRecipient(recipient.id)}
+                      disabled={removingId === recipient.id}
+                      className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors opacity-0 group-hover:opacity-100 disabled:opacity-50 shrink-0"
+                    >
+                      {removingId === recipient.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Send test report */}
+          <div className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-gray-900 dark:text-white">Send Test Report</h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Send yesterday's report to all active recipients now.</p>
+              </div>
+              <button
+                onClick={handleSendTestReport}
+                disabled={isSendingTest || recipients.filter(r => r.isActive).length === 0}
+                className="flex items-center gap-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-5 py-2.5 text-sm font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm transition-all disabled:opacity-50"
+              >
+                {isSendingTest ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                {isSendingTest ? "Sending..." : "Send Test"}
+              </button>
+            </div>
+            {testResult && (
+              <div className={`mt-3 rounded-lg px-4 py-2.5 text-xs font-medium ${testResult.success ? 'bg-green-50 dark:bg-green-900/10 text-green-700 dark:text-green-400 border border-green-100 dark:border-green-900/30' : 'bg-red-50 dark:bg-red-900/10 text-red-700 dark:text-red-400 border border-red-100 dark:border-red-900/30'}`}>
+                {testResult.message}
+              </div>
+            )}
           </div>
         </div>
       </div>

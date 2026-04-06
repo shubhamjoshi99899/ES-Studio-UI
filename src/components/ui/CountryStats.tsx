@@ -1,28 +1,22 @@
 import { useMemo } from "react";
-import { BackendMetric } from "@/types";
+import { CountryStat } from "@/types";
 import { Globe } from "lucide-react";
 
 interface CountryStatsProps {
-  rawData: BackendMetric[];
+  countryStats: CountryStat[];
 }
 
-export function CountryStats({ rawData }: CountryStatsProps) {
+export function CountryStats({ countryStats }: CountryStatsProps) {
   const countryData = useMemo(() => {
-    const counts: Record<string, number> = {};
-    rawData.forEach((row) => {
-      const c = row.country || "Unknown";
-      counts[c] = (counts[c] || 0) + Number(row.sessions);
-    });
-    const total = Object.values(counts).reduce((a, b) => a + b, 0);
-    return Object.entries(counts)
-      .sort((a, b) => b[1] - a[1])
+    const total = countryStats.reduce((a, b) => a + Number(b.sessions), 0);
+    return countryStats
       .slice(0, 8)
-      .map(([label, value]) => ({
-        label,
-        value,
-        percent: total ? (value / total) * 100 : 0,
+      .map((row) => ({
+        label: row.country || "Unknown",
+        value: Number(row.sessions),
+        percent: total ? (Number(row.sessions) / total) * 100 : 0,
       }));
-  }, [rawData]);
+  }, [countryStats]);
 
   return (
     <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm h-full flex flex-col">

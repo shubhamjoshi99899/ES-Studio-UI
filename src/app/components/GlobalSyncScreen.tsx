@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { Loader2, CloudDownload } from "lucide-react";
 import { usePathname } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 
 export default function GlobalSyncScreen({
   children,
@@ -13,6 +14,9 @@ export default function GlobalSyncScreen({
   const [jobsRemaining, setJobsRemaining] = useState(0);
   const [initialJobs, setInitialJobs] = useState<number | null>(null);
   const pathname = usePathname();
+  const queryClient = useQueryClient();
+
+  const initialJobsRef = React.useRef<number | null>(null);
 
   useEffect(() => {
     const checkSyncStatus = async () => {
@@ -29,11 +33,22 @@ export default function GlobalSyncScreen({
 
           if (
             data.isSyncing &&
-            initialJobs === null &&
+            initialJobsRef.current === null &&
             data.jobsRemaining > 0
           ) {
+            initialJobsRef.current = data.jobsRemaining;
             setInitialJobs(data.jobsRemaining);
+          } else if (!data.isSyncing && initialJobsRef.current !== null) {
+            // SYNC JUST FINISHED!
+            initialJobsRef.current = null;
+            setInitialJobs(null);
+            
+            // Invalidate React Query caches so all charts automatically re-fetch the newly downloaded data!
+            queryClient.invalidateQueries({ queryKey: ["meta-aggregate"] });
+            queryClient.invalidateQueries({ queryKey: ["meta-demographics"] });
+            queryClient.invalidateQueries({ queryKey: ["smart-analytics"] });
           } else if (!data.isSyncing) {
+            initialJobsRef.current = null;
             setInitialJobs(null);
           }
         }
@@ -44,7 +59,7 @@ export default function GlobalSyncScreen({
     const interval = setInterval(checkSyncStatus, 5000);
 
     return () => clearInterval(interval);
-  }, [initialJobs]);
+  }, []);
 
   const isRestrictedPage =
     pathname?.startsWith("/reports") || pathname?.startsWith("/settings");

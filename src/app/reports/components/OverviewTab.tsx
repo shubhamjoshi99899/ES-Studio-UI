@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   LineChart,
@@ -11,7 +11,8 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { METRIC_CONFIG, MetricKey } from "../types";
+import { METRIC_CONFIG, MetricKey, DemographicData } from "../types";
+import DemographicsSection from "./DemographicsSection";
 import DateRangePicker from "../../components/DateRangePicker";
 import {
   Settings2,
@@ -70,6 +71,22 @@ const fetchAggregatedData = async ({ queryKey }: any) => {
   return data;
 };
 
+const fetchAggregatedDemographics = async ({ queryKey }: any) => {
+  const [_key, profileIds] = queryKey;
+  const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+  
+  const res = await fetch(`${BACKEND_URL}/api/analytics/demographics/aggregate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ profileIds }),
+  });
+  
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to fetch demographics");
+  return data as DemographicData;
+};
+
 export default function OverviewTab({
   selectedProfileIds,
   activePlatform,
@@ -90,9 +107,26 @@ export default function OverviewTab({
   const { data: aggData, isLoading: loading, error } = useQuery({
     queryKey: ["aggregate", selectedProfileIds, startDate, endDate],
     queryFn: fetchAggregatedData,
-    enabled: selectedProfileIds.length > 0, // Only fetch if profiles are selected
-    staleTime: 1000 * 60 * 5, // Cache for 5 minutes
+    enabled: selectedProfileIds.length > 0,
+    staleTime: 1000 * 60 * 5,
   });
+
+  // Fetch aggregated demographics for all selected profiles
+  const { data: demoData = null, isLoading: loadingDemos } = useQuery({
+    queryKey: ["demographics-aggregated", selectedProfileIds],
+    queryFn: fetchAggregatedDemographics,
+    enabled: selectedProfileIds.length > 0,
+    staleTime: 1000 * 60 * 10, // Cache for 10 min (lifetime data)
+  });
+
+  // Filter metrics — revenue only for Facebook
+  const visibleMetrics = useMemo(() => {
+    return (Object.keys(METRIC_CONFIG) as MetricKey[]).filter((key) => {
+      const config = METRIC_CONFIG[key];
+      if (config.fbOnly && activePlatform !== "facebook") return false;
+      return true;
+    });
+  }, [activePlatform]);
 
   const handlePresetChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const val = e.target.value;
@@ -183,10 +217,12 @@ export default function OverviewTab({
               </button>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 p-2 gap-1">
-              {(Object.keys(METRIC_CONFIG) as MetricKey[]).map((key) => {
+            <div className={`grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 p-2 gap-1`}>
+              {visibleMetrics.map((key) => {
                 const itemConf = METRIC_CONFIG[key];
-                const val = (aggData.totals as any)[itemConf.valueKey];
+                const rawVal = (aggData.totals as any)[itemConf.valueKey];
+                const val = key === "revenue" ? `$${Number(rawVal).toFixed(2)}` : rawVal;
+                const displayVal = key === "revenue" ? val : rawVal.toLocaleString();
                 const change = Number(
                   (aggData.totals as any)[itemConf.changeKey],
                 );
@@ -207,8 +243,8 @@ export default function OverviewTab({
                       <span
                         className={`text-xl xl:text-2xl font-bold ${isActive ? "text-[#6366f1]" : "text-gray-800 dark:text-white"}`}
                       >
-                        {val.toLocaleString()}
-                        {itemConf.suffix}
+                        {displayVal}
+                        {key !== "revenue" && itemConf.suffix}
                       </span>
                       <span
                         className={`text-[10px] font-bold flex items-center gap-0.5 ${change >= 0 ? "text-emerald-600" : "text-gray-500 dark:text-gray-400"}`}
@@ -388,6 +424,11 @@ export default function OverviewTab({
             </div>
           </div>
         </>
+      )}
+
+      {/* Demographics Section */}
+      {hasData && (
+        <DemographicsSection data={demoData} loading={loadingDemos} />
       )}
 
       {error && (

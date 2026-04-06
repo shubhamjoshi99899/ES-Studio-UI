@@ -18,8 +18,9 @@ import {
   TableProperties,
 } from "lucide-react";
 import { AreaChart, Area, ResponsiveContainer, Tooltip } from "recharts";
-import { METRIC_CONFIG, MetricKey, Profile } from "../types";
+import { METRIC_CONFIG, MetricKey, Profile, DemographicData } from "../types";
 import DateRangePicker from "../../components/DateRangePicker";
+import DemographicsSection from "./DemographicsSection";
 
 const TrendIndicator = ({ change }: { change: number }) => {
   if (isNaN(change) || change === 0)
@@ -61,6 +62,19 @@ const fetchAggregatedData = async ({ queryKey }: any) => {
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "Failed to fetch data");
   return data;
+};
+
+const fetchProfileDemographics = async ({ queryKey }: any) => {
+  const [_key, profileId] = queryKey;
+  const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+  
+  const res = await fetch(`${BACKEND_URL}/api/analytics/demographics/${profileId}`, {
+    credentials: "include",
+  });
+  
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to fetch demographics");
+  return data as DemographicData;
 };
 
 
@@ -126,6 +140,23 @@ export default function ProfilesTab({ profile }: { profile: Profile | null }) {
     enabled: !!profile && compareMode !== "none",
     staleTime: 1000 * 60 * 5,
   });
+
+  // Demographics for this individual profile
+  const { data: demoData = null, isLoading: loadingDemos } = useQuery({
+    queryKey: ["demographics-profile", profile?.profileId],
+    queryFn: fetchProfileDemographics,
+    enabled: !!profile,
+    staleTime: 1000 * 60 * 10,
+  });
+
+  // Filter metrics — revenue only for Facebook
+  const visibleMetrics = useMemo(() => {
+    return (Object.keys(METRIC_CONFIG) as MetricKey[]).filter((key) => {
+      const config = METRIC_CONFIG[key];
+      if (config.fbOnly && profile?.platform !== "facebook") return false;
+      return true;
+    });
+  }, [profile?.platform]);
 
   // --- Merge Data for Charts Using useMemo ---
   const chartData = useMemo(() => {
@@ -349,10 +380,12 @@ export default function ProfilesTab({ profile }: { profile: Profile | null }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {(Object.keys(METRIC_CONFIG) as MetricKey[]).map((key) => {
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
+        {visibleMetrics.map((key) => {
           const config = METRIC_CONFIG[key];
-          const val = Number((totals as any)[config.valueKey]) || 0;
+          const rawVal = Number((totals as any)[config.valueKey]) || 0;
+          const val = rawVal;
+          const displayVal = key === "revenue" ? `$${rawVal.toFixed(2)}` : rawVal.toLocaleString();
 
           let change = 0;
           if (compareMode !== "none" && compTotals) {
@@ -372,8 +405,8 @@ export default function ProfilesTab({ profile }: { profile: Profile | null }) {
                   </h3>
                   <div className="mt-1 flex items-baseline gap-2">
                     <span className="text-2xl font-bold text-gray-900 dark:text-white">
-                      {val.toLocaleString()}
-                      {config.suffix}
+                      {displayVal}
+                      {key !== "revenue" && config.suffix}
                     </span>
                     {compareMode !== "none" && compTotals && (
                       <span
@@ -743,6 +776,9 @@ export default function ProfilesTab({ profile }: { profile: Profile | null }) {
           </table>
         </div>
       </div>
+
+      {/* Demographics for this profile */}
+      <DemographicsSection data={demoData} loading={loadingDemos} />
     </div>
   );
 }

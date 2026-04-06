@@ -1,5 +1,6 @@
 export interface MappingEntry {
   category: string;
+  team?: string;
   platform: string;
   pageName: string;
   utmSource: string;

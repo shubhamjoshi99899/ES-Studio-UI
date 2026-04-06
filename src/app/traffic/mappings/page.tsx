@@ -19,7 +19,7 @@ interface MappingWithId extends MappingEntry {
 export default function PageMappingsSettings() {
   const [mappings, setMappings] = useState<MappingWithId[]>([]);
   const [loading, setLoading] = useState(true);
-  
+
   // Single Entry States
   const [newCategory, setNewCategory] = useState("");
   const [newPlatform, setNewPlatform] = useState("Facebook");

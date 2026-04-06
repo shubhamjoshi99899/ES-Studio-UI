@@ -28,11 +28,11 @@ export default function AppLayoutWrapper({
       <Sidebar isCollapsed={isCollapsed} setIsCollapsed={setIsCollapsed} />
 
       <div
-        className={`flex flex-1 flex-col h-screen min-w-0 transition-all duration-300 ${isCollapsed ? "ml-20" : "ml-64"}`}
+        className={`flex flex-1 flex-col h-screen min-w-0 transition-all duration-300 ${isCollapsed ? "ml-16" : "ml-56"}`}
       >
         <Topbar />
 
-        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 md:p-5 xl:p-8">
           <GlobalSyncScreen>{children}</GlobalSyncScreen>
         </main>
       </div>
