@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 import GlobalSyncScreen from "./GlobalSyncScreen";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function AppLayoutWrapper({
   children,
@@ -14,6 +15,8 @@ export default function AppLayoutWrapper({
   const pathname = usePathname();
   const isLoginPage = pathname === "/login";
   const [isCollapsed, setIsCollapsed] = useState(false);
+
+  useAuth();
 
   if (isLoginPage) {
     return (

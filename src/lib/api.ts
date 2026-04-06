@@ -19,11 +19,11 @@ apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && error.response.status === 401) {
-      if (typeof window !== "undefined") {
-        // Must call backend to clear HttpOnly cookie
-        apiClient.post("/api/auth/logout").finally(() => {
-          window.location.href = "/login";
-        });
+      const url = error.config?.url || "";
+      // Skip redirect for auth-check calls (useAuth hook) and login/logout
+      const isAuthCheck = url.includes("/sync-status") || url.includes("/auth/login") || url.includes("/auth/logout");
+      if (!isAuthCheck && typeof window !== "undefined") {
+        window.location.href = "/login";
       }
     }
     return Promise.reject(error);
