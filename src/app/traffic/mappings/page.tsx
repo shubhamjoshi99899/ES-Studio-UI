@@ -32,6 +32,8 @@ export default function PageMappingsSettings() {
   // Team Management
   const [newTeamName, setNewTeamName] = useState("");
   const [isAddingTeam, setIsAddingTeam] = useState(false);
+  const [showNewTeamForm, setShowNewTeamForm] = useState(false);
+  const [newTeamAssignPages, setNewTeamAssignPages] = useState<number[]>([]);
 
   // Upload States
   const [isUploadingMapping, setIsUploadingMapping] = useState(false);
@@ -43,6 +45,36 @@ export default function PageMappingsSettings() {
   const existingTeams = Array.from(
     new Set(mappings.map((m) => m.team).filter(Boolean) as string[])
   ).sort();
+
+  // Pages not assigned to any team
+  const unassignedPages = mappings.filter((m) => !m.team);
+
+  const handleCreateTeamWithPages = async () => {
+    const trimmed = newTeamName.trim();
+    if (!trimmed) return;
+    if (existingTeams.includes(trimmed)) {
+      alert(`Team "${trimmed}" already exists.`);
+      return;
+    }
+    if (newTeamAssignPages.length === 0) {
+      alert("Select at least one page to assign to the new team.");
+      return;
+    }
+    setIsAddingTeam(true);
+    try {
+      for (const pageId of newTeamAssignPages) {
+        await updatePageMapping(pageId, { team: trimmed });
+      }
+      setNewTeamName("");
+      setNewTeamAssignPages([]);
+      setShowNewTeamForm(false);
+      loadMappings();
+    } catch (err) {
+      console.error("Failed to create team", err);
+    } finally {
+      setIsAddingTeam(false);
+    }
+  };
 
   useEffect(() => {
     loadMappings();
@@ -225,49 +257,121 @@ export default function PageMappingsSettings() {
             <Users className="w-5 h-5 text-purple-500" /> Team Management
           </h2>
           <div className="flex flex-wrap gap-2 mb-4">
-            {existingTeams.length === 0 && (
-              <p className="text-sm text-gray-500">No teams yet. Add one below.</p>
+            {existingTeams.length === 0 && !showNewTeamForm && (
+              <p className="text-sm text-gray-500">No teams yet. Create one below.</p>
             )}
-            {existingTeams.map((team) => (
-              <span
-                key={team}
-                className="inline-flex items-center gap-1.5 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 px-3 py-1.5 rounded-full text-sm font-medium border border-purple-200 dark:border-purple-800"
-              >
-                {team}
-                <button
-                  onClick={() => handleRemoveTeam(team)}
-                  className="hover:bg-purple-200 dark:hover:bg-purple-800 rounded-full p-0.5 transition"
-                  title={`Remove team "${team}"`}
+            {existingTeams.map((team) => {
+              const count = mappings.filter((m) => m.team === team).length;
+              return (
+                <span
+                  key={team}
+                  className="inline-flex items-center gap-1.5 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 px-3 py-1.5 rounded-full text-sm font-medium border border-purple-200 dark:border-purple-800"
                 >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </span>
-            ))}
+                  {team}
+                  <span className="text-xs opacity-70">({count})</span>
+                  <button
+                    onClick={() => handleRemoveTeam(team)}
+                    className="hover:bg-purple-200 dark:hover:bg-purple-800 rounded-full p-0.5 transition"
+                    title={`Remove team "${team}"`}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </span>
+              );
+            })}
           </div>
-          <div className="flex items-center gap-2">
-            <input
-              className="flex-1 max-w-xs p-2 rounded border border-gray-300 dark:border-gray-700 bg-transparent text-sm"
-              value={newTeamName}
-              onChange={(e) => setNewTeamName(e.target.value)}
-              placeholder="New team name"
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  if (newTeamName.trim() && !existingTeams.includes(newTeamName.trim())) {
-                    setIsAddingTeam(true);
-                    // To "create" a team, we just need it assigned to at least one mapping.
-                    // For now, just add it to the local list by creating a placeholder —
-                    // teams are derived from mappings, so we inform the user.
+
+          {!showNewTeamForm ? (
+            <button
+              onClick={() => setShowNewTeamForm(true)}
+              className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm"
+            >
+              <Plus className="w-4 h-4" /> Create Team
+            </button>
+          ) : (
+            <div className="border border-purple-200 dark:border-purple-800 rounded-xl p-4 bg-purple-50/50 dark:bg-purple-900/10 space-y-3">
+              <div className="flex items-center gap-2">
+                <input
+                  className="flex-1 max-w-xs p-2 rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm"
+                  value={newTeamName}
+                  onChange={(e) => setNewTeamName(e.target.value)}
+                  placeholder="Team name"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") {
+                      setShowNewTeamForm(false);
+                      setNewTeamName("");
+                      setNewTeamAssignPages([]);
+                    }
+                  }}
+                />
+                <button
+                  onClick={() => {
+                    setShowNewTeamForm(false);
                     setNewTeamName("");
-                    setIsAddingTeam(false);
-                  }
-                }
-              }}
-            />
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              Teams are created by assigning them to pages below. Type a new team name in the mapping form.
-            </p>
-          </div>
+                    setNewTeamAssignPages([]);
+                  }}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1 rounded transition"
+                  title="Cancel"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {newTeamName.trim() && (
+                <>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Select unassigned pages to add to &quot;{newTeamName.trim()}&quot;:
+                  </p>
+                  {unassignedPages.length === 0 ? (
+                    <p className="text-xs text-gray-400 italic">
+                      All pages are already assigned to a team. You can reassign pages from the table below.
+                    </p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto">
+                      {unassignedPages.map((page) => {
+                        const selected = newTeamAssignPages.includes(page.id!);
+                        return (
+                          <button
+                            key={page.id}
+                            onClick={() =>
+                              setNewTeamAssignPages((prev) =>
+                                selected
+                                  ? prev.filter((id) => id !== page.id)
+                                  : [...prev, page.id!]
+                              )
+                            }
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition ${
+                              selected
+                                ? "bg-purple-600 text-white border-purple-600"
+                                : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-purple-400"
+                            }`}
+                          >
+                            {page.pageName}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-2 pt-1">
+                    <button
+                      onClick={handleCreateTeamWithPages}
+                      disabled={isAddingTeam || newTeamAssignPages.length === 0}
+                      className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm disabled:opacity-50"
+                    >
+                      {isAddingTeam ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Plus className="w-4 h-4" />
+                      )}
+                      Create &quot;{newTeamName.trim()}&quot; with {newTeamAssignPages.length} page(s)
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Add New Single Mapping Form */}
@@ -391,9 +495,19 @@ export default function PageMappingsSettings() {
                       <select
                         className="bg-transparent border border-gray-300 dark:border-gray-700 rounded px-2 py-1 text-sm w-full min-w-[100px]"
                         value={m.team || ""}
-                        onChange={(e) =>
-                          handleTeamChange(m.id, e.target.value || null)
-                        }
+                        onChange={(e) => {
+                          if (e.target.value === "__NEW_TEAM__") {
+                            const name = prompt("Enter new team name:");
+                            if (name && name.trim()) {
+                              handleTeamChange(m.id, name.trim());
+                            } else {
+                              // Reset to current value if cancelled
+                              e.target.value = m.team || "";
+                            }
+                          } else {
+                            handleTeamChange(m.id, e.target.value || null);
+                          }
+                        }}
                       >
                         <option value="">No Team</option>
                         {existingTeams.map((t) => (
@@ -401,6 +515,7 @@ export default function PageMappingsSettings() {
                             {t}
                           </option>
                         ))}
+                        <option value="__NEW_TEAM__">+ New Team...</option>
                       </select>
                     </td>
                     <td className="px-6 py-4">{m.platform}</td>

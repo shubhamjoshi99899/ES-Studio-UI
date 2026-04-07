@@ -11,22 +11,15 @@ import {
 } from "@/lib/api";
 import {
   format, subDays, eachDayOfInterval, parseISO, startOfWeek,
-  startOfMonth, isBefore, subWeeks, startOfToday,
+  startOfMonth, subWeeks, startOfToday,
 } from "date-fns";
 
 export function useTrafficData() {
   const queryClient = useQueryClient();
 
-  const getSmartStartDate = () => {
-    const yesterday = subDays(new Date(), 1);
-    const weekStart = startOfWeek(yesterday, { weekStartsOn: 1 });
-    const monthStart = startOfMonth(yesterday);
-    return isBefore(weekStart, monthStart) ? monthStart : weekStart;
-  };
-
   // 1. Local Filter State
   const [platform, setPlatform] = useState<"Facebook" | "Threads">("Facebook");
-  const [startDate, setStartDate] = useState(format(getSmartStartDate(), "yyyy-MM-dd"));
+  const [startDate, setStartDate] = useState(format(subDays(subDays(new Date(), 1), 6), "yyyy-MM-dd"));
   const [endDate, setEndDate] = useState(format(subDays(new Date(), 1), "yyyy-MM-dd"));
   const [selectedCampaign, setSelectedCampaign] = useState<string>("");
 
@@ -113,8 +106,9 @@ export function useTrafficData() {
   };
 
   const resetFilters = () => {
-    setStartDate(format(getSmartStartDate(), "yyyy-MM-dd"));
-    setEndDate(format(subDays(new Date(), 1), "yyyy-MM-dd"));
+    const yesterday = subDays(new Date(), 1);
+    setStartDate(format(subDays(yesterday, 6), "yyyy-MM-dd"));
+    setEndDate(format(yesterday, "yyyy-MM-dd"));
     setSelectedCampaign("");
   };
 

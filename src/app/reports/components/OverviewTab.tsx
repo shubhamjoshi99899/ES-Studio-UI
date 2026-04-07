@@ -20,6 +20,7 @@ import {
   TrendingDown,
   Calendar,
   AlertTriangle,
+  Download,
 } from "lucide-react";
 
 const CustomXAxisTick = ({ x, y, payload, index }: any) => {
@@ -86,6 +87,57 @@ const fetchAggregatedDemographics = async ({ queryKey }: any) => {
   if (!res.ok) throw new Error(data.error || "Failed to fetch demographics");
   return data as DemographicData;
 };
+
+/* ─── CSV Export ─── */
+function exportOverviewCSV(
+  aggData: any,
+  visibleMetrics: MetricKey[],
+  startDate: string,
+  endDate: string,
+) {
+  const rows: string[][] = [];
+
+  // --- Section 1: Summary totals ---
+  rows.push(["Metric", "Value", "Change (%)"]);
+  for (const key of visibleMetrics) {
+    const cfg = METRIC_CONFIG[key];
+    const rawVal = (aggData.totals as any)[cfg.valueKey];
+    const displayVal =
+      key === "revenue"
+        ? `$${Number(rawVal).toFixed(2)}`
+        : `${Number(rawVal).toLocaleString()}${cfg.suffix || ""}`;
+    const change = (aggData.totals as any)[cfg.changeKey];
+    rows.push([cfg.label, displayVal, `${change}%`]);
+  }
+
+  // --- Blank separator ---
+  rows.push([]);
+
+  // --- Section 2: Daily time series ---
+  const metricHeaders = visibleMetrics.map((k) => METRIC_CONFIG[k].label);
+  rows.push(["Date", ...metricHeaders]);
+
+  for (const day of aggData.timeSeries) {
+    const values = visibleMetrics.map((k) => {
+      const v = (day as any)[k];
+      return v != null ? String(v) : "0";
+    });
+    rows.push([day.date, ...values]);
+  }
+
+  // --- Build CSV string and trigger download ---
+  const csvContent = rows
+    .map((r) => r.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+    .join("\n");
+
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `overview_report_${startDate}_to_${endDate}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
 
 export default function OverviewTab({
   selectedProfileIds,
@@ -191,6 +243,17 @@ export default function OverviewTab({
             />
           </div>
         )}
+
+        <div className="ml-auto">
+          <button
+            onClick={() => exportOverviewCSV(aggData, visibleMetrics, startDate, endDate)}
+            disabled={!hasData}
+            className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors"
+          >
+            <Download size={16} />
+            Download CSV
+          </button>
+        </div>
       </div>
 
       {!hasData ? (

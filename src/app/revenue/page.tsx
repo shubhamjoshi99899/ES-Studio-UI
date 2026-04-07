@@ -30,6 +30,8 @@ import {
   YAxis,
   CartesianGrid,
   Legend,
+  LineChart,
+  Line,
 } from "recharts";
 
 /* ─── Formatting helper ─── */
@@ -88,6 +90,79 @@ const SOURCE_LABELS: Record<string, string> = {
   story: "Story",
   text: "Text",
 };
+
+/* ─── Distinct color palette for line charts ─── */
+const LINE_COLORS = [
+  "#6366f1", "#ec4899", "#14b8a6", "#f59e0b", "#8b5cf6",
+  "#ef4444", "#06b6d4", "#84cc16", "#f97316", "#a855f7",
+  "#10b981", "#e11d48", "#0ea5e9", "#eab308", "#d946ef",
+  "#22d3ee", "#fb923c", "#4ade80", "#f43f5e", "#818cf8",
+];
+
+/* ─── Build daily progression data ─── */
+function buildDailyProgression(
+  rows: RevenueMetricRow[],
+  groupBy: "team" | "pageName",
+): { chartData: Record<string, string | number>[]; keys: string[] } {
+  const dateMap = new Map<string, Map<string, number>>();
+  const allKeys = new Set<string>();
+
+  for (const row of rows) {
+    const key = groupBy === "team" ? (row.team || "Unassigned") : row.pageName;
+    allKeys.add(key);
+    if (!dateMap.has(row.date)) dateMap.set(row.date, new Map());
+    const dayMap = dateMap.get(row.date)!;
+    dayMap.set(key, (dayMap.get(key) || 0) + (Number(row.total) || 0));
+  }
+
+  const sortedDates = Array.from(dateMap.keys()).sort();
+  const chartData = sortedDates.map((date) => {
+    const dayMap = dateMap.get(date)!;
+    const entry: Record<string, string | number> = {
+      date: date.slice(5), // MM-DD for compact labels
+    };
+    for (const key of allKeys) {
+      entry[key] = Math.round((dayMap.get(key) || 0) * 100) / 100;
+    }
+    return entry;
+  });
+
+  // Sort keys by total descending for legend ordering
+  const keyTotals = new Map<string, number>();
+  for (const key of allKeys) {
+    keyTotals.set(key, chartData.reduce((s, d) => s + (Number(d[key]) || 0), 0));
+  }
+  const keys = Array.from(allKeys).sort((a, b) => (keyTotals.get(b) || 0) - (keyTotals.get(a) || 0));
+
+  return { chartData, keys };
+}
+
+/* ─── Custom Tooltip for Line Charts ─── */
+function LineTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null;
+  const sorted = [...payload].sort((a: any, b: any) => (Number(b.value) || 0) - (Number(a.value) || 0));
+  const total = sorted.reduce((s: number, p: any) => s + (Number(p.value) || 0), 0);
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-lg dark:border-gray-700 dark:bg-gray-800 min-w-[180px] max-h-[320px] overflow-y-auto">
+      <p className="text-xs font-semibold text-gray-900 dark:text-white mb-2">{label}</p>
+      {sorted.map((p: any) =>
+        Number(p.value) > 0 ? (
+          <div key={p.dataKey} className="flex items-center justify-between gap-3 text-xs">
+            <span className="flex items-center gap-1.5 truncate max-w-[140px]" style={{ color: p.color }}>
+              <span className="inline-block h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: p.color }} />
+              {p.dataKey}
+            </span>
+            <span className="font-semibold text-gray-700 dark:text-gray-300">{fmt(p.value)}</span>
+          </div>
+        ) : null,
+      )}
+      <div className="mt-1.5 border-t border-gray-200 dark:border-gray-700 pt-1.5 flex justify-between text-xs font-bold text-gray-900 dark:text-white">
+        <span>Total</span>
+        <span>{fmt(total)}</span>
+      </div>
+    </div>
+  );
+}
 
 /* ─── Build team groups from flat rows ─── */
 function buildTeamGroups(rows: RevenueMetricRow[]): TeamGroup[] {
@@ -311,6 +386,11 @@ export default function RevenuePage() {
       Text: g.totals.text,
     }));
   }, [teamGroups]);
+
+  /* Daily progression — team-wise */
+  const teamProgression = useMemo(() => buildDailyProgression(rawRows, "team"), [rawRows]);
+  /* Daily progression — page-wise */
+  const pageProgression = useMemo(() => buildDailyProgression(rawRows, "pageName"), [rawRows]);
 
   const toggleTeam = (team: string) => {
     setExpandedTeams((prev) => {
@@ -538,6 +618,105 @@ export default function RevenuePage() {
                   </ResponsiveContainer>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ Daily Revenue Progression ═══ */}
+      {!isLoading && teamProgression.chartData.length > 1 && (
+        <div className="grid grid-cols-1 gap-4">
+          {/* Team-wise daily progression */}
+          <div className="rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900 overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800">
+              <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <TrendingUp size={16} className="text-green-500" />
+                Daily Revenue — Team Wise
+              </h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                Total revenue per day, split by team
+              </p>
+            </div>
+            <div className="p-4">
+              <div className="h-[340px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={teamProgression.chartData} margin={{ top: 10, right: 10, left: -10, bottom: 5 }}>
+                    <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis
+                      dataKey="date"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: "#6b7280", fontSize: 11 }}
+                    />
+                    <YAxis
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: "#6b7280", fontSize: 11 }}
+                      tickFormatter={(v) => `$${v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}`}
+                    />
+                    <Tooltip content={<LineTooltip />} />
+                    <Legend wrapperStyle={{ fontSize: 11, paddingTop: 4 }} iconType="plainline" iconSize={14} />
+                    {teamProgression.keys.map((key, i) => (
+                      <Line
+                        key={key}
+                        type="monotone"
+                        dataKey={key}
+                        stroke={LINE_COLORS[i % LINE_COLORS.length]}
+                        strokeWidth={2}
+                        dot={teamProgression.chartData.length <= 15 ? { r: 3 } : false}
+                        activeDot={{ r: 5 }}
+                      />
+                    ))}
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+
+          {/* Page-wise daily progression */}
+          <div className="rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900 overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800">
+              <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <TrendingUp size={16} className="text-indigo-500" />
+                Daily Revenue — Page Wise
+              </h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                Total revenue per day, split by page
+              </p>
+            </div>
+            <div className="p-4">
+              <div className="h-[340px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={pageProgression.chartData} margin={{ top: 10, right: 10, left: -10, bottom: 5 }}>
+                    <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis
+                      dataKey="date"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: "#6b7280", fontSize: 11 }}
+                    />
+                    <YAxis
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: "#6b7280", fontSize: 11 }}
+                      tickFormatter={(v) => `$${v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}`}
+                    />
+                    <Tooltip content={<LineTooltip />} />
+                    <Legend wrapperStyle={{ fontSize: 11, paddingTop: 4 }} iconType="plainline" iconSize={14} />
+                    {pageProgression.keys.map((key, i) => (
+                      <Line
+                        key={key}
+                        type="monotone"
+                        dataKey={key}
+                        stroke={LINE_COLORS[i % LINE_COLORS.length]}
+                        strokeWidth={2}
+                        dot={pageProgression.chartData.length <= 15 ? { r: 3 } : false}
+                        activeDot={{ r: 5 }}
+                      />
+                    ))}
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           </div>
         </div>
