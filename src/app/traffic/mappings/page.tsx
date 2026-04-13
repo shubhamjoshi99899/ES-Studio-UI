@@ -545,7 +545,8 @@ export default function PageMappingsSettings() {
                         {m.utmMediums.map((med) => (
                           <span
                             key={med}
-                            className="bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded text-xs border border-gray-200 dark:border-gray-700"
+                            title={med}
+                            className="bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded text-xs border border-gray-200 dark:border-gray-700 max-w-[220px] truncate inline-block align-middle"
                           >
                             {med}
                           </span>

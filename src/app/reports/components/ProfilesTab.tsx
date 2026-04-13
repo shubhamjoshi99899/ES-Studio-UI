@@ -17,7 +17,7 @@ import {
   Download,
   TableProperties,
 } from "lucide-react";
-import { AreaChart, Area, ResponsiveContainer, Tooltip } from "recharts";
+import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis } from "recharts";
 import { METRIC_CONFIG, MetricKey, Profile, DemographicData } from "../types";
 import DateRangePicker from "../../components/DateRangePicker";
 import DemographicsSection from "./DemographicsSection";
@@ -450,6 +450,10 @@ export default function ProfilesTab({ profile }: { profile: Profile | null }) {
                         />
                       </linearGradient>
                     </defs>
+                    {/* Hidden XAxis — without this, Recharts uses the row
+                        index as the Tooltip label, which makes every
+                        `new Date(label)` resolve to 1 Jan 1970. */}
+                    <XAxis dataKey="date" hide />
                     <Tooltip
                       contentStyle={{
                         borderRadius: "8px",
@@ -459,12 +463,20 @@ export default function ProfilesTab({ profile }: { profile: Profile | null }) {
                         backgroundColor: "#fff",
                         color: "#000",
                       }}
-                      labelFormatter={(label) =>
-                        new Date(label).toLocaleDateString(undefined, {
-                          month: "short",
-                          day: "numeric",
-                        })
-                      }
+                      labelFormatter={(label) => {
+                        // `label` is the YYYY-MM-DD string from the data point.
+                        // Parse as UTC to avoid a timezone shift that could
+                        // show the previous day in IST/other +tz locales.
+                        const d = new Date(`${label}T00:00:00Z`);
+                        return isNaN(d.getTime())
+                          ? String(label)
+                          : d.toLocaleDateString(undefined, {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                              timeZone: "UTC",
+                            });
+                      }}
                       formatter={(value: any, name: any) => [
                         value?.toLocaleString() || "0",
                         String(name).includes("prev_")

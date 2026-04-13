@@ -224,6 +224,9 @@ function buildTeamGroups(rows: RevenueMetricRow[]): TeamGroup[] {
     const totals: SourceTotals = { bonus: 0, photo: 0, reel: 0, story: 0, text: 0, total: 0 };
 
     for (const [pageName, s] of pageMap) {
+      // Skip pages that earned nothing in the selected range — the table should
+      // only surface pages with non-zero revenue.
+      if ((Number(s.total) || 0) <= 0) continue;
       pages.push({ pageName, ...s });
       totals.bonus += s.bonus;
       totals.photo += s.photo;
@@ -232,6 +235,9 @@ function buildTeamGroups(rows: RevenueMetricRow[]): TeamGroup[] {
       totals.text += s.text;
       totals.total += s.total;
     }
+
+    // Drop entire team group if no page survived the zero-revenue filter.
+    if (pages.length === 0) continue;
 
     pages.sort((a, b) => b.total - a.total);
     groups.push({ team, pages, totals });
@@ -386,11 +392,21 @@ export default function RevenuePage() {
     staleTime: 1000 * 60 * 5,
   });
 
-  /* Derive all unique page names from the data */
+  /* Derive all unique page names from the data, EXCLUDING pages whose total
+   * revenue across the range is zero — those pages should not appear anywhere
+   * in the revenue view (table, page filter, charts). */
   const allPageNames = useMemo(() => {
-    const names = new Set<string>();
-    for (const row of rawRows) names.add(row.pageName);
-    return Array.from(names).sort((a, b) => a.localeCompare(b));
+    const totalByPage = new Map<string, number>();
+    for (const row of rawRows) {
+      totalByPage.set(
+        row.pageName,
+        (totalByPage.get(row.pageName) || 0) + (Number(row.total) || 0),
+      );
+    }
+    return Array.from(totalByPage.entries())
+      .filter(([, total]) => total > 0)
+      .map(([name]) => name)
+      .sort((a, b) => a.localeCompare(b));
   }, [rawRows]);
 
   /* Auto-select all pages when data first loads or data changes */
