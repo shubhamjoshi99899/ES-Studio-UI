@@ -137,9 +137,10 @@ export function MappingsView({ onBack }: { onBack: () => void }) {
     }
   };
 
-  const handleAssignTeam = async (id: number, teamName: string) => {
+  const handleAssignTeam = async (ids: number | number[], teamName: string) => {
+    const idList = Array.isArray(ids) ? ids : [ids];
     try {
-      await updatePageMapping(id, { team: teamName });
+      await Promise.all(idList.map((id) => updatePageMapping(id, { team: teamName })));
       loadMappings();
     } catch (err) {
       console.error("Failed to assign team", err);
@@ -147,10 +148,11 @@ export function MappingsView({ onBack }: { onBack: () => void }) {
     }
   };
 
-  const handleRemoveFromTeam = async (id: number) => {
+  const handleRemoveFromTeam = async (ids: number | number[]) => {
+    const idList = Array.isArray(ids) ? ids : [ids];
     if (confirm("Remove this page from the team?")) {
       try {
-        await updatePageMapping(id, { team: "" });
+        await Promise.all(idList.map((id) => updatePageMapping(id, { team: "" })));
         loadMappings();
       } catch (err) {
         console.error("Failed to remove from team", err);
@@ -199,13 +201,31 @@ export function MappingsView({ onBack }: { onBack: () => void }) {
     }
   };
 
+  // Dedupe mappings by pageName within each team group. The page_mappings
+  // table can hold multiple rows per pageName (e.g. different utmMediums),
+  // but the team assignment UI should show each page once — matching the
+  // aggregated traffic table.
   const groupedByTeam = useMemo(() => {
-    const grouped: Record<string, MappingWithId[]> = {};
+    const grouped: Record<string, { pageName: string; ids: number[]; sample: MappingWithId }[]> = {};
     mappings.forEach((m) => {
       const teamName = m.team?.trim() || "Unassigned";
       if (!grouped[teamName]) grouped[teamName] = [];
-      grouped[teamName].push(m);
+      const bucket = grouped[teamName];
+      const existing = bucket.find((p) => p.pageName === m.pageName);
+      if (existing) {
+        if (m.id != null) existing.ids.push(m.id);
+      } else {
+        bucket.push({
+          pageName: m.pageName,
+          ids: m.id != null ? [m.id] : [],
+          sample: m,
+        });
+      }
     });
+    // Sort each bucket alphabetically by pageName for stable display
+    Object.values(grouped).forEach((arr) =>
+      arr.sort((a, b) => a.pageName.localeCompare(b.pageName)),
+    );
     return grouped;
   }, [mappings]);
 
@@ -515,14 +535,14 @@ export function MappingsView({ onBack }: { onBack: () => void }) {
                   <div className="p-4 flex flex-wrap gap-2">
                     {groupedByTeam[teamName].map((page) => (
                       <div
-                        key={page.id}
+                        key={page.pageName}
                         className="flex items-center gap-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-3 py-1.5 rounded-lg text-sm font-medium shadow-sm"
                       >
                         <span className="text-gray-800 dark:text-gray-200">
                           {page.pageName}
                         </span>
                         <button
-                          onClick={() => handleRemoveFromTeam(page.id!)}
+                          onClick={() => handleRemoveFromTeam(page.ids)}
                           className="text-gray-400 hover:text-red-500 transition-colors p-0.5 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20"
                           title="Remove from Team"
                         >
@@ -535,7 +555,8 @@ export function MappingsView({ onBack }: { onBack: () => void }) {
                       <select
                         onChange={(e) => {
                           if (e.target.value) {
-                            handleAssignTeam(Number(e.target.value), teamName);
+                            const ids = e.target.value.split(",").map(Number).filter((n) => !isNaN(n));
+                            if (ids.length) handleAssignTeam(ids, teamName);
                             e.target.value = "";
                           }
                         }}
@@ -544,7 +565,7 @@ export function MappingsView({ onBack }: { onBack: () => void }) {
                       >
                         <option value="" disabled>+ Add Page</option>
                         {groupedByTeam["Unassigned"]?.map((uPage) => (
-                          <option key={uPage.id} value={uPage.id}>
+                          <option key={uPage.pageName} value={uPage.ids.join(",")}>
                             {uPage.pageName}
                           </option>
                         ))}
@@ -568,7 +589,7 @@ export function MappingsView({ onBack }: { onBack: () => void }) {
                   <div className="space-y-3">
                     {groupedByTeam["Unassigned"].map((page) => (
                       <div
-                        key={page.id}
+                        key={page.pageName}
                         className="flex flex-col gap-2 p-3 bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700 rounded-lg"
                       >
                         <span className="font-bold text-sm text-gray-800 dark:text-gray-200">
@@ -578,9 +599,14 @@ export function MappingsView({ onBack }: { onBack: () => void }) {
                           <select
                             onChange={(e) => {
                               if (e.target.value === "NEW_TEAM") {
-                                handleUpdateTeam(page.id, undefined);
+                                // Prompt once, then apply to every mapping row for this pageName
+                                const updatedTeam = prompt("Enter new team name:", "");
+                                if (updatedTeam !== null) {
+                                  const trimmed = updatedTeam.trim();
+                                  if (trimmed) handleAssignTeam(page.ids, trimmed);
+                                }
                               } else if (e.target.value) {
-                                handleAssignTeam(page.id!, e.target.value);
+                                handleAssignTeam(page.ids, e.target.value);
                               }
                               e.target.value = "";
                             }}

@@ -46,8 +46,26 @@ export default function PageMappingsSettings() {
     new Set(mappings.map((m) => m.team).filter(Boolean) as string[])
   ).sort();
 
-  // Pages not assigned to any team
-  const unassignedPages = mappings.filter((m) => !m.team);
+  // Pages not assigned to any team — deduped by pageName so each page
+  // appears once (matching the aggregated traffic table). Keeps all
+  // underlying mapping IDs so assignment applies to every row.
+  const unassignedPages = (() => {
+    const byName = new Map<string, { pageName: string; ids: number[]; sample: MappingWithId }>();
+    mappings.forEach((m) => {
+      if (m.team) return;
+      const entry = byName.get(m.pageName);
+      if (entry) {
+        if (m.id != null) entry.ids.push(m.id);
+      } else {
+        byName.set(m.pageName, {
+          pageName: m.pageName,
+          ids: m.id != null ? [m.id] : [],
+          sample: m,
+        });
+      }
+    });
+    return Array.from(byName.values()).sort((a, b) => a.pageName.localeCompare(b.pageName));
+  })();
 
   const handleCreateTeamWithPages = async () => {
     const trimmed = newTeamName.trim();
@@ -330,15 +348,15 @@ export default function PageMappingsSettings() {
                   ) : (
                     <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto">
                       {unassignedPages.map((page) => {
-                        const selected = newTeamAssignPages.includes(page.id!);
+                        const selected = page.ids.every((id) => newTeamAssignPages.includes(id));
                         return (
                           <button
-                            key={page.id}
+                            key={page.pageName}
                             onClick={() =>
                               setNewTeamAssignPages((prev) =>
                                 selected
-                                  ? prev.filter((id) => id !== page.id)
-                                  : [...prev, page.id!]
+                                  ? prev.filter((id) => !page.ids.includes(id))
+                                  : [...prev, ...page.ids.filter((id) => !prev.includes(id))]
                               )
                             }
                             className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition ${
