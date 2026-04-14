@@ -148,6 +148,7 @@ export function useTrafficData() {
     options: { dateHeaders, availableCampaigns },
     stats,
     refresh: () => {
+      queryClient.invalidateQueries({ queryKey: ["mappings"] });
       queryClient.invalidateQueries({ queryKey: ["analytics-aggregated"] });
       queryClient.invalidateQueries({ queryKey: ["headlines"] });
       queryClient.invalidateQueries({ queryKey: ["countryStats"] });

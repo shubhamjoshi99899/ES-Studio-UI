@@ -50,7 +50,7 @@ interface MappingWithId extends MappingEntry {
 // =====================================================================
 // 1. MAPPINGS & TEAMS DIRECTORY COMPONENT
 // =====================================================================
-export function MappingsView({ onBack }: { onBack: () => void }) {
+export function MappingsView({ onBack, onMappingsChanged }: { onBack: () => void, onMappingsChanged?: () => void }) {
   const [mappings, setMappings] = useState<MappingWithId[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<"mappings" | "teams">("mappings");
@@ -78,6 +78,7 @@ export function MappingsView({ onBack }: { onBack: () => void }) {
     try {
       const data = await fetchPageMappings();
       setMappings(data);
+      onMappingsChanged?.();
     } catch (error) {
       console.error("Failed to load mappings", error);
     }
@@ -143,6 +144,7 @@ export function MappingsView({ onBack }: { onBack: () => void }) {
     try {
       const updated = await batchUpdatePageMappingTeam(idList, teamName);
       setMappings(updated);
+      onMappingsChanged?.();
     } catch (err) {
       console.error("Failed to assign team", err);
       alert("Failed to assign team");
@@ -155,6 +157,7 @@ export function MappingsView({ onBack }: { onBack: () => void }) {
       try {
         const updated = await batchUpdatePageMappingTeam(idList, null);
         setMappings(updated);
+        onMappingsChanged?.();
       } catch (err) {
         console.error("Failed to remove from team", err);
         alert("Failed to remove from team");
@@ -264,6 +267,7 @@ export function MappingsView({ onBack }: { onBack: () => void }) {
     try {
       const updated = await batchUpdatePageMappingTeam(ids, updatedTeam.trim() || null);
       setMappings(updated);
+      onMappingsChanged?.();
     } catch (err) {
       console.error('Failed to update team', err);
       alert('Failed to update team');
@@ -731,7 +735,7 @@ export default function WebTrafficPage() {
   }
 
   if (showMappings) {
-    return <MappingsView onBack={() => setShowMappings(false)} />;
+    return <MappingsView onBack={() => setShowMappings(false)} onMappingsChanged={() => trafficData.refresh()} />;
   }
 
   const {
