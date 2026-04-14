@@ -171,9 +171,11 @@ export default function OverviewTab({
     staleTime: 1000 * 60 * 10, // Cache for 10 min (lifetime data)
   });
 
-  // Filter metrics — revenue only for Facebook
+  // Filter metrics
   const visibleMetrics = useMemo(() => {
     return (Object.keys(METRIC_CONFIG) as MetricKey[]).filter((key) => {
+      // Remove revenue from overview tab per user request
+      if (key === "revenue") return false;
       const config = METRIC_CONFIG[key];
       if (config.fbOnly && activePlatform !== "facebook") return false;
       return true;
