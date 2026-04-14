@@ -93,6 +93,16 @@ export async function updatePageMapping(id: number, mapping: Partial<MappingEntr
   return apiClient.patch(`${MAPPINGS_URL}/${id}`, mapping);
 }
 
+/** Batch-update the team field for multiple page-mapping IDs in a single
+ *  request, avoiding the race condition of N parallel PATCH calls. */
+export async function batchUpdatePageMappingTeam(
+  ids: number[],
+  team: string | null,
+): Promise<MappingEntry[]> {
+  const response = await apiClient.patch(`${MAPPINGS_URL}/batch/team`, { ids, team });
+  return response.data;
+}
+
 export async function fetchHeadlines(
   source?: string,
 ): Promise<HeadlineData | null> {
@@ -498,5 +508,14 @@ export async function updateRevenueMapping(
   team: string | null,
 ): Promise<RevenueMappingRow[]> {
   const response = await apiClient.patch(`${REVENUE_URL}/mappings/${id}`, { team });
+  return response.data;
+}
+
+/** Batch-update the team for multiple revenue-mapping IDs in one request. */
+export async function batchUpdateRevenueMappingTeam(
+  ids: number[],
+  team: string | null,
+): Promise<RevenueMappingRow[]> {
+  const response = await apiClient.patch(`${REVENUE_URL}/mappings/batch/team`, { ids, team });
   return response.data;
 }

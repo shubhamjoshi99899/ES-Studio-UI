@@ -2,7 +2,12 @@
 
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { fetchRevenueMappings, updateRevenueMapping, RevenueMappingRow } from "@/lib/api";
+import {
+  fetchRevenueMappings,
+  updateRevenueMapping,
+  batchUpdateRevenueMappingTeam,
+  RevenueMappingRow,
+} from "@/lib/api";
 import { ArrowLeft, Plus, X, Tag, Users, ChevronDown } from "lucide-react";
 import Link from "next/link";
 
@@ -17,8 +22,10 @@ export default function RevenueMappingsPage() {
   const mutation = useMutation({
     mutationFn: ({ id, team }: { id: number; team: string | null }) =>
       updateRevenueMapping(id, team),
-    onSuccess: (data) => {
-      queryClient.setQueryData(["revenue-mappings"], data);
+    onSuccess: () => {
+      // Always refetch from server after a mutation — avoids stale-data race
+      // conditions that happen when setQueryData is used with concurrent calls.
+      queryClient.invalidateQueries({ queryKey: ["revenue-mappings"] });
     },
   });
 
@@ -47,12 +54,22 @@ export default function RevenueMappingsPage() {
     setNewTeamInput("");
   };
 
-  const removeTeam = (teamName: string) => {
+  const removeTeam = async (teamName: string) => {
     const pagesInTeam = mappings.filter((m) => m.team === teamName);
     if (pagesInTeam.length > 0) {
       if (!confirm(`"${teamName}" has ${pagesInTeam.length} page(s). Unassign all and remove this team?`)) return;
-      // Unassign all pages in this team
-      pagesInTeam.forEach((p) => mutation.mutate({ id: p.id, team: null }));
+      // Batch-unassign all pages in a single request, then refetch.
+      // Previous approach fired N parallel mutations whose onSuccess
+      // callbacks overwrote each other → teams seemed to "disappear".
+      try {
+        const ids = pagesInTeam.map((p) => p.id);
+        const updated = await batchUpdateRevenueMappingTeam(ids, null);
+        queryClient.setQueryData(["revenue-mappings"], updated);
+      } catch (err) {
+        console.error("Failed to unassign pages from team", err);
+        alert("Failed to remove team. Please try again.");
+        return;
+      }
     }
     setLocalTeams((prev) => prev.filter((t) => t !== teamName));
   };

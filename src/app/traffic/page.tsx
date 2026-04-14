@@ -37,6 +37,7 @@ import {
   createPageMapping,
   deletePageMapping,
   updatePageMapping,
+  batchUpdatePageMappingTeam,
   importPageMappingsCSV,
   importLegacyDataCSV,
 } from "@/lib/api";
@@ -94,7 +95,7 @@ export function MappingsView({ onBack }: { onBack: () => void }) {
 
     const newEntry: MappingEntry = {
       category: newCategory || "Uncategorized",
-      team: newTeam.trim() || undefined,
+      team: newTeam.trim() || null,
       platform: newPlatform,
       pageName: newPageName,
       utmSource: newUtmSource,
@@ -128,7 +129,7 @@ export function MappingsView({ onBack }: { onBack: () => void }) {
     const updatedTeam = prompt("Enter new team name:", currentTeam || "");
     if (updatedTeam !== null) {
       try {
-        await updatePageMapping(id, { team: updatedTeam.trim() || undefined });
+        await updatePageMapping(id, { team: updatedTeam.trim() || null });
         loadMappings();
       } catch (err) {
         console.error("Failed to update team", err);
@@ -140,8 +141,8 @@ export function MappingsView({ onBack }: { onBack: () => void }) {
   const handleAssignTeam = async (ids: number | number[], teamName: string) => {
     const idList = Array.isArray(ids) ? ids : [ids];
     try {
-      await Promise.all(idList.map((id) => updatePageMapping(id, { team: teamName })));
-      loadMappings();
+      const updated = await batchUpdatePageMappingTeam(idList, teamName);
+      setMappings(updated);
     } catch (err) {
       console.error("Failed to assign team", err);
       alert("Failed to assign team");
@@ -152,8 +153,8 @@ export function MappingsView({ onBack }: { onBack: () => void }) {
     const idList = Array.isArray(ids) ? ids : [ids];
     if (confirm("Remove this page from the team?")) {
       try {
-        await Promise.all(idList.map((id) => updatePageMapping(id, { team: "" })));
-        loadMappings();
+        const updated = await batchUpdatePageMappingTeam(idList, null);
+        setMappings(updated);
       } catch (err) {
         console.error("Failed to remove from team", err);
         alert("Failed to remove from team");
@@ -261,10 +262,8 @@ export function MappingsView({ onBack }: { onBack: () => void }) {
     const updatedTeam = prompt('Enter new team name:', currentTeam || '');
     if (updatedTeam === null) return;
     try {
-      await Promise.all(
-        ids.map((id) => updatePageMapping(id, { team: updatedTeam.trim() || undefined })),
-      );
-      loadMappings();
+      const updated = await batchUpdatePageMappingTeam(ids, updatedTeam.trim() || null);
+      setMappings(updated);
     } catch (err) {
       console.error('Failed to update team', err);
       alert('Failed to update team');

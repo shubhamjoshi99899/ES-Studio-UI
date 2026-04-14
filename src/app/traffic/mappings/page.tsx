@@ -6,6 +6,7 @@ import {
   createPageMapping,
   deletePageMapping,
   updatePageMapping,
+  batchUpdatePageMappingTeam,
   importPageMappingsCSV,
   importLegacyDataCSV,
 } from "@/lib/api";
@@ -80,13 +81,11 @@ export default function PageMappingsSettings() {
     }
     setIsAddingTeam(true);
     try {
-      for (const pageId of newTeamAssignPages) {
-        await updatePageMapping(pageId, { team: trimmed });
-      }
+      const updated = await batchUpdatePageMappingTeam(newTeamAssignPages, trimmed);
+      setMappings(updated);
       setNewTeamName("");
       setNewTeamAssignPages([]);
       setShowNewTeamForm(false);
-      loadMappings();
     } catch (err) {
       console.error("Failed to create team", err);
     } finally {
@@ -116,7 +115,7 @@ export default function PageMappingsSettings() {
 
     const newEntry: MappingEntry = {
       category: newCategory || "Uncategorized",
-      team: newTeam || undefined,
+      team: newTeam.trim() || null,
       platform: newPlatform,
       pageName: newPageName,
       utmSource: newUtmSource,
@@ -144,7 +143,9 @@ export default function PageMappingsSettings() {
   const handleTeamChange = async (mappingId: number | undefined, team: string | null) => {
     if (!mappingId) return;
     try {
-      await updatePageMapping(mappingId, { team });
+      // Normalise: empty string → null so the backend stores a clean NULL,
+      // not an empty string that looks assigned but groups separately.
+      await updatePageMapping(mappingId, { team: team?.trim() || null });
       loadMappings();
     } catch (err) {
       console.error("Failed to update team", err);
@@ -161,10 +162,11 @@ export default function PageMappingsSettings() {
       return;
 
     try {
-      for (const m of pagesWithTeam) {
-        if (m.id) await updatePageMapping(m.id, { team: null });
+      const ids = pagesWithTeam.map((m) => m.id).filter((id): id is number => !!id);
+      if (ids.length > 0) {
+        const updated = await batchUpdatePageMappingTeam(ids, null);
+        setMappings(updated);
       }
-      loadMappings();
     } catch (err) {
       console.error("Failed to remove team", err);
     }
