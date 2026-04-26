@@ -10,6 +10,12 @@ import {
   DollarSign,
   Settings,
   Sparkles,
+  CalendarRange,
+  MessageSquareMore,
+  Siren,
+  FolderKanban,
+  Workflow,
+  Users2,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -19,6 +25,12 @@ const navItems = [
   { name: "Web Traffic", href: "/traffic", icon: BarChart3 },
   { name: "Reports", href: "/reports", icon: BarChart2 },
   { name: "Revenue", href: "/revenue", icon: DollarSign },
+  { name: "Schedule", href: "/schedule", icon: CalendarRange },
+  { name: "Smart Inbox", href: "/smart-box", icon: MessageSquareMore },
+  { name: "Insights", href: "/insights", icon: Siren },
+  { name: "Campaigns", href: "/campaigns", icon: FolderKanban },
+  { name: "Automation", href: "/automation", icon: Workflow },
+  { name: "Team", href: "/team", icon: Users2 },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
 
@@ -39,7 +51,7 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: SidebarProps) {
         <div
           className={`flex items-center gap-2 ${isCollapsed ? "justify-center w-full" : ""}`}
         >
-          <div className="flex h-8 w-8 min-w-[32px] items-center justify-center rounded-lg bg-indigo-600 text-white shadow-sm">
+          <div className="flex h-8 w-8 min-w-[32px] items-center justify-center rounded-lg bg-teal-600 text-white shadow-sm">
             <Sparkles size={18} />
           </div>
           {!isCollapsed && (
@@ -51,7 +63,7 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: SidebarProps) {
       </div>
 
       {/* Navigation Links */}
-      <nav className="flex-1 space-y-1 px-3 py-6 overflow-hidden">
+      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-6">
         {navItems.map((item) => {
           const isActive = pathname.startsWith(item.href);
           const Icon = item.icon;
@@ -63,7 +75,7 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: SidebarProps) {
               title={isCollapsed ? item.name : undefined}
               className={`flex items-center rounded-xl py-3 text-sm font-medium transition-colors ${
                 isActive
-                  ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-400"
+                  ? "bg-teal-50 text-teal-700 dark:bg-teal-500/10 dark:text-teal-300"
                   : "text-gray-500 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
               } ${isCollapsed ? "justify-center px-0" : "gap-3 px-4"}`}
             >
@@ -71,7 +83,7 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: SidebarProps) {
                 size={20}
                 className={
                   isActive
-                    ? "text-indigo-700 dark:text-indigo-400 min-w-[20px]"
+                    ? "text-teal-700 dark:text-teal-300 min-w-[20px]"
                     : "min-w-[20px]"
                 }
               />

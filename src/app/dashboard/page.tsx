@@ -1,387 +1,314 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import {
-  Calendar,
-  ChevronDown,
-  Download,
-  MoreHorizontal,
-  FileText,
-  FileSpreadsheet,
-  TrendingUp,
-  TrendingDown,
-  Loader2,
-  ArrowUpRight,
-} from "lucide-react";
-import { fetchHeadlines } from "@/lib/api";
+import type { ReactNode } from "react";
+import { CalendarRange, FolderKanban, Layers3, Users2 } from "lucide-react";
+import { useCampaigns } from "@/hooks/use-campaigns";
+import { useSubscription } from "@/hooks/use-billing";
+import { usePosts } from "@/hooks/use-schedule";
+import { useMembers } from "@/hooks/use-team";
+import { type Campaign, type PostPlatform } from "@/lib/api-client";
 
-export default function Dashboard() {
-  const [loading, setLoading] = useState(true);
-  const [gaData, setGaData] = useState<any>(null);
-  const [metaData, setMetaData] = useState<any>(null);
+const PLATFORM_BADGE_STYLES: Record<PostPlatform, string> = {
+  facebook: "bg-blue-50 text-blue-700",
+  instagram: "bg-pink-50 text-pink-700",
+  linkedin: "bg-sky-50 text-sky-700",
+  tiktok: "bg-slate-100 text-slate-700",
+};
 
-  const [dateRange] = useState(() => {
-    const end = new Date();
-    const start = new Date();
-    start.setDate(start.getDate() - 30);
-    return {
-      startDate: start.toISOString().split("T")[0],
-      endDate: end.toISOString().split("T")[0],
-    };
-  });
+function formatDateTime(value: string | null) {
+  if (!value) {
+    return "Not scheduled";
+  }
 
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      setLoading(true);
-      const BACKEND_URL =
-        process.env.NEXT_PUBLIC_API_URL || "";
-      try {
-        const headlines = await fetchHeadlines();
-        if (headlines) setGaData(headlines);
+  const date = new Date(value);
 
-        const profileRes = await fetch(
-          `${BACKEND_URL}/api/analytics/profiles/list`,
-          {
-            credentials: "include",
-          },
-        );
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
 
-        if (profileRes.ok) {
-          const profiles = await profileRes.json();
-          if (Array.isArray(profiles) && profiles.length > 0) {
-            const profileIds = profiles.map((p: any) => p.profileId);
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
 
-            const aggRes = await fetch(
-              `${BACKEND_URL}/api/analytics/aggregate`,
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include",
-                body: JSON.stringify({
-                  profileIds,
-                  startDate: dateRange.startDate,
-                  endDate: dateRange.endDate,
-                }),
-              },
-            );
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
 
-            if (aggRes.ok) {
-              const aggData = await aggRes.json();
-              setMetaData(aggData);
-            }
-          }
-        }
-      } catch (error) {
-        console.error("Failed to load dashboard data:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
+function capitalize(value: string | undefined) {
+  if (!value) {
+    return "—";
+  }
 
-    fetchDashboardData();
-  }, [dateRange.startDate, dateRange.endDate]);
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
 
-  const MetricCard = ({ title, value, change, link, suffix = "" }: any) => {
-    const isPositive = Number(change) >= 0;
-    return (
-      <Link
-        href={link}
-        className="block group rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 p-6 shadow-sm hover:border-indigo-100 dark:hover:border-indigo-500/30 hover:shadow-md transition-all relative overflow-hidden"
-      >
-        <ArrowUpRight
-          className="absolute top-4 right-4 text-gray-300 dark:text-gray-600 opacity-0 -translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all"
-          size={20}
-        />
-        <div className="flex flex-col gap-3">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+function PlatformBadge({ platform }: { platform: PostPlatform }) {
+  return (
+    <span
+      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${PLATFORM_BADGE_STYLES[platform]}`}
+    >
+      {platform}
+    </span>
+  );
+}
+
+function MetricSkeleton() {
+  return Array.from({ length: 4 }).map((_, index) => (
+    <div
+      key={`metric-skeleton-${index}`}
+      className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="space-y-3">
+          <div className="h-3 w-24 animate-pulse rounded bg-gray-200" />
+          <div className="h-8 w-20 animate-pulse rounded bg-gray-100" />
+        </div>
+        <div className="h-10 w-10 animate-pulse rounded-xl bg-gray-100" />
+      </div>
+    </div>
+  ));
+}
+
+function ListSkeleton({ rows }: { rows: number }) {
+  return Array.from({ length: rows }).map((_, index) => (
+    <div
+      key={`list-skeleton-${index}`}
+      className="rounded-xl border border-gray-100 bg-gray-50 p-4"
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="space-y-2">
+          <div className="h-4 w-44 animate-pulse rounded bg-gray-200" />
+          <div className="h-4 w-60 animate-pulse rounded bg-gray-100" />
+        </div>
+        <div className="h-6 w-16 animate-pulse rounded-full bg-gray-100" />
+      </div>
+    </div>
+  ));
+}
+
+function MetricCard({
+  title,
+  value,
+  icon,
+}: {
+  title: string;
+  value: string | number;
+  icon: ReactNode;
+}) {
+  return (
+    <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
             {title}
           </p>
-          <div className="flex items-end justify-between">
-            <p className="text-2xl xl:text-3xl font-bold text-gray-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-              {value !== undefined
-                ? `${Number(value).toLocaleString()}${suffix}`
-                : "..."}
-            </p>
-            {change !== undefined && (
-              <div
-                className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${
-                  isPositive
-                    ? "bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400"
-                    : "bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400"
-                }`}
-              >
-                {isPositive ? (
-                  <TrendingUp size={12} />
-                ) : (
-                  <TrendingDown size={12} />
-                )}
-                {Math.abs(Number(change))}%
-              </div>
-            )}
-          </div>
+          <p className="mt-3 text-3xl font-semibold text-gray-950">{value}</p>
         </div>
-      </Link>
-    );
-  };
+        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
+          {icon}
+        </div>
+      </div>
+    </div>
+  );
+}
 
-  const upcomingPosts = [
-    {
-      id: 1,
-      title: "Product launch announcement - Phase 1",
-      time: "Tomorrow at 10:00 AM",
-      platform: "Instagram",
-      image:
-        "https://images.unsplash.com/photo-1611162617474-5b21e879e113?q=80&w=100&auto=format&fit=crop",
-    },
-    {
-      id: 2,
-      title: "Customer testimonial spotlight",
-      time: "Oct 14 at 2:30 PM",
-      platform: "Facebook",
-      image:
-        "https://images.unsplash.com/photo-1516321497487-e288fb19713f?q=80&w=100&auto=format&fit=crop",
-    },
-  ];
+function sortScheduledPostsByDate<T extends { scheduledAt: string | null }>(items: T[]) {
+  return [...items].sort((left, right) => {
+    const leftDate = left.scheduledAt ? new Date(left.scheduledAt).getTime() : Number.MAX_SAFE_INTEGER;
+    const rightDate = right.scheduledAt ? new Date(right.scheduledAt).getTime() : Number.MAX_SAFE_INTEGER;
+    return leftDate - rightDate;
+  });
+}
 
-  const recentReports = [
-    {
-      id: 1,
-      name: "September_Audit_Final.pdf",
-      meta: "2 days ago • 4.2 MB",
-      type: "pdf",
-    },
-    {
-      id: 2,
-      name: "Weekly_Performance_V2.csv",
-      meta: "5 days ago • 1.1 MB",
-      type: "csv",
-    },
-  ];
+function activeCampaignsOnly(items: Campaign[]) {
+  return items.filter((campaign) => campaign.status === "active");
+}
+
+export default function DashboardPage() {
+  const {
+    posts,
+    isLoading: isPostsLoading,
+    error: postsError,
+  } = usePosts({ status: "scheduled" });
+  const {
+    campaigns,
+    isLoading: isCampaignsLoading,
+    error: campaignsError,
+  } = useCampaigns();
+  const {
+    subscription,
+    isLoading: isSubscriptionLoading,
+    error: subscriptionError,
+  } = useSubscription();
+  const {
+    members,
+    isLoading: isMembersLoading,
+    error: membersError,
+  } = useMembers();
+
+  const upcomingPosts = sortScheduledPostsByDate(posts).slice(0, 5);
+  const activeCampaigns = activeCampaignsOnly(campaigns);
+  const topCampaigns = activeCampaigns.slice(0, 3);
+  const isMetricsLoading =
+    isPostsLoading || isCampaignsLoading || isSubscriptionLoading || isMembersLoading;
 
   return (
     <div className="space-y-6 pb-10">
-      <div className="flex flex-col gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Dashboard Overview
-          </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Real-time performance across your connected platforms.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <button className="flex items-center gap-2 rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
-            <Calendar size={16} className="text-gray-400" />
-            Last 30 days
-            <ChevronDown size={16} className="text-gray-400" />
-          </button>
-        </div>
+      <div>
+        <h1 className="text-2xl font-semibold text-gray-950">Dashboard</h1>
+        <p className="mt-1 text-sm text-gray-600">
+          Live operational view of scheduled content, campaigns, billing, and team capacity.
+        </p>
       </div>
 
-      {loading ? (
-        <div className="flex h-64 flex-col gap-3 items-center justify-center bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
-          <Loader2 className="w-6 h-6 text-indigo-600 animate-spin" />
-          <div className="text-gray-500 dark:text-gray-400 font-medium">
-            Gathering command center data...
-          </div>
+      {postsError || campaignsError || subscriptionError || membersError ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          Some dashboard data failed to load. Try refreshing the page.
         </div>
-      ) : (
-        <>
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                Web Traffic Overview
-              </h2>
-              <Link
-                href="/traffic"
-                className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors"
-              >
-                View Analytics →
-              </Link>
+      ) : null}
+
+      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {isMetricsLoading ? (
+          <MetricSkeleton />
+        ) : (
+          <>
+            <MetricCard
+              title="Scheduled posts"
+              value={posts.length}
+              icon={<CalendarRange size={20} />}
+            />
+            <MetricCard
+              title="Active campaigns"
+              value={activeCampaigns.length}
+              icon={<FolderKanban size={20} />}
+            />
+            <MetricCard
+              title="Current plan"
+              value={capitalize(subscription?.plan)}
+              icon={<Layers3 size={20} />}
+            />
+            <MetricCard
+              title="Workspace members"
+              value={members.length}
+              icon={<Users2 size={20} />}
+            />
+          </>
+        )}
+      </section>
+
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+          <div className="mb-6 flex items-center justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-950">Upcoming posts</h2>
+              <p className="mt-1 text-sm text-gray-600">
+                The next scheduled items waiting in the publishing queue.
+              </p>
             </div>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <MetricCard
-                title="Daily Sessions (Yesterday)"
-                value={gaData?.daily?.sessions || 0}
-                change={gaData?.daily?.diff || 0}
-                link="/traffic"
-              />
-              <MetricCard
-                title="Weekly Sessions (Last 7 Days)"
-                value={gaData?.weekly?.sessions || 0}
-                change={gaData?.weekly?.diff || 0}
-                link="/traffic"
-              />
-            </div>
+            <Link
+              href="/schedule"
+              className="text-sm font-semibold text-blue-600 transition hover:text-blue-700"
+            >
+              View all
+            </Link>
           </div>
 
-          <div className="h-px w-full bg-gray-200 dark:bg-gray-800 my-2"></div>
+          <div className="space-y-3">
+            {isPostsLoading ? <ListSkeleton rows={5} /> : null}
 
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                Social Media Overview (30 Days)
-              </h2>
-              <Link
-                href="/reports"
-                className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors"
-              >
-                View Reports →
-              </Link>
-            </div>
+            {!isPostsLoading && upcomingPosts.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-gray-300 px-4 py-12 text-center text-sm text-gray-500">
+                No posts scheduled — go to Schedule to create one
+              </div>
+            ) : null}
 
-            {metaData?.totals ? (
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                <MetricCard
-                  title="Total Audience"
-                  value={metaData.totals.currentAudience}
-                  change={metaData.totals.audienceChange}
-                  link="/reports"
-                />
-                <MetricCard
-                  title="Net Followers"
-                  value={metaData.totals.netGrowth}
-                  change={metaData.totals.growthChange}
-                  link="/reports"
-                />
-                <MetricCard
-                  title="Impressions / Reach"
-                  value={metaData.totals.impressions}
-                  change={metaData.totals.impressionsChange}
-                  link="/reports"
-                />
-                <MetricCard
-                  title="Total Engagements"
-                  value={metaData.totals.engagements}
-                  change={metaData.totals.engagementsChange}
-                  link="/reports"
-                />
-                <MetricCard
-                  title="Engagement Rate"
-                  value={metaData.totals.engagementRate}
-                  change={metaData.totals.engagementRateChange}
-                  link="/reports"
-                  suffix="%"
-                />
-                <MetricCard
-                  title="Page Views"
-                  value={metaData.totals.pageViews}
-                  change={metaData.totals.pageViewsChange}
-                  link="/reports"
-                />
-                <MetricCard
-                  title="Video Views"
-                  value={metaData.totals.videoViews}
-                  change={metaData.totals.videoViewsChange}
-                  link="/reports"
-                />
-                <MetricCard
-                  title="Net Messages"
-                  value={metaData.totals.messages}
-                  change={metaData.totals.messagesChange}
-                  link="/reports"
-                />
-              </div>
-            ) : (
-              <div className="rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 p-8 text-center shadow-sm">
-                <p className="text-gray-500 dark:text-gray-400 mb-2">
-                  No social data available.
-                </p>
-                <Link
-                  href="/settings"
-                  className="text-sm font-semibold text-indigo-600 dark:text-indigo-400 hover:underline"
-                >
-                  Connect accounts in Settings
-                </Link>
-              </div>
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 mt-4">
-            <div className="rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 p-6 shadow-sm">
-              <div className="mb-6 flex items-center justify-between">
-                <h2 className="text-base font-bold text-gray-900 dark:text-white">
-                  Upcoming Scheduled Posts
-                </h2>
-                <button className="text-sm font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700">
-                  Calendar
-                </button>
-              </div>
-              <div className="space-y-4">
-                {upcomingPosts.map((post) => (
+            {!isPostsLoading
+              ? upcomingPosts.map((post) => (
                   <div
                     key={post.id}
-                    className="flex items-center justify-between rounded-xl border border-gray-50 dark:border-gray-800/50 p-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+                    className="rounded-xl border border-gray-100 p-4 transition hover:bg-gray-50"
                   >
-                    <div className="flex items-center gap-4">
-                      <img
-                        src={post.image}
-                        alt=""
-                        className="h-10 w-10 rounded-lg object-cover"
-                      />
-                      <div>
-                        <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                          {post.title}
-                        </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          {post.time} • {post.platform}
-                        </p>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0">
+                        <div className="font-medium text-gray-950">{post.title}</div>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {post.platforms.map((platform) => (
+                            <PlatformBadge key={`${post.id}-${platform}`} platform={platform} />
+                          ))}
+                        </div>
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        {formatDateTime(post.scheduledAt)}
                       </div>
                     </div>
-                    <MoreHorizontal
-                      size={20}
-                      className="text-gray-400 dark:text-gray-500"
-                    />
                   </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 p-6 shadow-sm">
-              <div className="mb-6 flex items-center justify-between">
-                <h2 className="text-base font-bold text-gray-900 dark:text-white">
-                  Recent Exports
-                </h2>
-                <button className="text-sm font-semibold text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
-                  Archive
-                </button>
-              </div>
-              <div className="space-y-4">
-                {recentReports.map((report) => (
-                  <div
-                    key={report.id}
-                    className="flex items-center justify-between rounded-xl border border-gray-50 dark:border-gray-800/50 p-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-pointer"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400">
-                        {report.type === "pdf" ? (
-                          <FileText size={20} />
-                        ) : (
-                          <FileSpreadsheet size={20} />
-                        )}
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                          {report.name}
-                        </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          {report.meta}
-                        </p>
-                      </div>
-                    </div>
-                    <Download
-                      size={18}
-                      className="text-gray-400 dark:text-gray-500"
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
+                ))
+              : null}
           </div>
-        </>
-      )}
+        </section>
+
+        <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+          <div className="mb-6 flex items-center justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-950">Active campaigns</h2>
+              <p className="mt-1 text-sm text-gray-600">
+                Campaigns currently running across connected publishing workflows.
+              </p>
+            </div>
+            <Link
+              href="/campaigns"
+              className="text-sm font-semibold text-blue-600 transition hover:text-blue-700"
+            >
+              View all
+            </Link>
+          </div>
+
+          <div className="space-y-3">
+            {isCampaignsLoading ? <ListSkeleton rows={3} /> : null}
+
+            {!isCampaignsLoading && topCampaigns.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-gray-300 px-4 py-12 text-center text-sm text-gray-500">
+                No active campaigns
+              </div>
+            ) : null}
+
+            {!isCampaignsLoading
+              ? topCampaigns.map((campaign) => (
+                  <div
+                    key={campaign.id}
+                    className="rounded-xl border border-gray-100 p-4 transition hover:bg-gray-50"
+                  >
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0">
+                        <div className="font-medium text-gray-950">{campaign.name}</div>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {campaign.platforms.map((platform) => (
+                            <PlatformBadge key={`${campaign.id}-${platform}`} platform={platform} />
+                          ))}
+                        </div>
+                      </div>
+                      <div className="text-right text-sm text-gray-500">
+                        <div>{campaign.totalPosts} posts</div>
+                        <div className="mt-1 font-medium text-gray-700">
+                          {formatCurrency(campaign.totalRevenue)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              : null}
+          </div>
+        </section>
+      </div>
     </div>
   );
 }
